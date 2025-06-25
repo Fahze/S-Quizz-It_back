@@ -1,0 +1,6 @@
+{
+    "recommendations": [
+        "irongeek.vscode-env",
+        "sonarsource.sonarlint-vscode"
+    ]
+}
