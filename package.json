@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "nitropack": "latest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.1"
   }
 }
