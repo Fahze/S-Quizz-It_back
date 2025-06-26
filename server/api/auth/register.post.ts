@@ -69,3 +69,64 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
+
+defineRouteMeta({
+    openAPI: {
+        tags: ["auth"],
+        summary: "Inscription d'un nouvel utilisateur",
+        description: "Route pour l'inscription d'un nouvel utilisateur (email, mot de passe, pseudo).",
+        requestBody: {
+            content: {
+                "application/json": {
+                    schema: {
+                        type: "object",
+                        properties: {
+                            email: {
+                                type: "string",
+                                format: "email",
+                                description: "L'email de l'utilisateur.",
+                            },
+                            password: {
+                                type: "string",
+                                description: "Le mot de passe de l'utilisateur.",
+                            },
+                            username: {
+                                type: "string",
+                                description: "Le pseudo de l'utilisateur.",
+                            },
+                        },
+                        required: ["email", "password", "username"],
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: "Inscription réussie.",
+                content: {
+                    "application/json": {
+                        schema: {
+                            type: "object",
+                            properties: {
+                                user: {
+                                    type: "object",
+                                    description: "Les informations de l'utilisateur inscrit.",
+                                },
+                                session: {
+                                    type: "object",
+                                    description: "La session de l'utilisateur.",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            400: {
+                description: "Email, mot de passe et nom d'utilisateur requis ou erreur d'inscription.",
+            },
+            500: {
+                description: "Erreur lors de la création du profil utilisateur ou de l'inscription.",
+            },
+        },
+    },
+});

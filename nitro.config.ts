@@ -6,4 +6,7 @@ export default defineNitroConfig({
     supabaseAdminKey: '', // Clé d'administration de votre instance Supabase
     supabaseKey: '',  // Clé API de votre instance Supabase
   },
+  experimental: {
+    openAPI: true, // Activer l'OpenAPI
+  }
 });
