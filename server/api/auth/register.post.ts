@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // On récupère le client Supabase
-    const supabase = await useSupabase(event);
+    const supabase = await useSupabase();
 
     // On tente de créer l'utilisateur
     const { data, error } = await supabase.auth.signUp({
