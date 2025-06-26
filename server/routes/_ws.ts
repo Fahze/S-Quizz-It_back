@@ -1,10 +1,3 @@
-import { supabase } from '../utils/useSupabase';
-
-enum typeRoom {
-  NORMAL = 'normal',
-  RAPIDE = 'rapide',
-}
-
 // Utilitaire pour générer un label aléatoire
 function genLabel(): string {
   return 'Salon-' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -12,6 +5,8 @@ function genLabel(): string {
 
 // Diffuse à tous les clients la liste actuelle des salons
 async function broadcastSalons(peer) {
+  const supabase = await useSupabase();
+
   const { data: salons, error } = await supabase.from('salon').select('*');
   const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
 
@@ -27,6 +22,8 @@ export default defineWebSocketHandler({
   },
 
   async message(peer, message): Promise<any> {
+    const supabase = await useSupabase();
+
     const text = message.text();
     // Pong
     if (text === 'ping') {
