@@ -1,48 +1,87 @@
 import { supabase } from '../utils/useSupabase';
 
-const peers: Set<any> = new Set();
+// Ensemble des clients connectés
+const peers = new Set<any>();
 
-const salon_changes = supabase.channel('salon_changes');
-salon_changes
-  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'salon' }, (payload) => handleOnPostgresChanges(payload))
-  .on('presence', { event: 'sync' }, () => handleOnPresenceSync())
-  .on('presence', { event: 'join' }, ({ key, newPresences }) => handleOnPresenceJoin({ key, newPresences }))
-  .on('presence', { event: 'leave' }, ({ key, leftPresences }) => handleOnPresenceLeave({ key, leftPresences }))
-  .subscribe();
+// Utilitaire pour générer un label aléatoire
+function genLabel(): string {
+  return 'Salon-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+}
+
+// Diffuse à tous les clients la liste actuelle des salons
+async function broadcastSalons() {
+  const { data: salons, error } = await supabase.from('salon').select('*');
+  const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
+
+  peers.forEach((peer) => {
+    peer.send(JSON.stringify(payload));
+  });
+}
 
 export default defineWebSocketHandler({
   async open(peer) {
     peers.add(peer);
+    console.log('[ws] nouveau client connecté', peer.id);
     peer.send({ type: 'welcome', message: 'Bienvenue 👋' });
-
-    const { data: salons, error } = await supabase.from('salon').select('*');
-    if (error) {
-      peer.send({ type: 'error', message: error.message });
-    } else {
-      peer.send({ type: 'salons_init', message: salons });
-    }
+    // Et la liste initiale des salons
+    await broadcastSalons();
   },
 
-  message(peer, message) {
+  async message(peer, message): Promise<any> {
     const text = message.text();
-    peer.send({ user: peer.toString(), message: message.toString() });
+    console.log('[ws] reçu:', text);
 
-    if (text.includes('ping')) {
+    console.log(text);
+    // Pong
+    if (text === 'ping') {
       peer.send('pong');
-    } else if (text.includes('fetch')) {
-      supabase
-        .from('salon')
-        .select('*')
-        .then(({ data, error }) => {
-          if (error) {
-            peer.send({ type: 'error', message: error.message });
-          } else {
-            peer.send({ type: 'salons_init', message: data });
-          }
-        });
+      return;
     }
 
-    // ici gérer la logique "room", subscribe/publish, ou d'autres commandes métier
+    // Création d'un salon
+    if (text === 'create') {
+      const newSalon = {
+        label: genLabel(),
+        difficulte: 1,
+        type: 'Normal',
+      };
+      const { error: insertError } = await supabase.from('salon').insert(newSalon);
+
+      if (insertError) {
+        peer.send(JSON.stringify({ type: 'error', message: insertError.message }));
+      } else {
+        // Après création, on rediffuse la liste entière à tous
+        await broadcastSalons();
+      }
+      return;
+    }
+
+    // Suppression d'un salon : "delete <id>"
+    if (text.startsWith('delete ')) {
+      const parts = text.split(' ');
+      const id = parseInt(parts[1], 10);
+      if (isNaN(id)) {
+        return peer.send(JSON.stringify({ type: 'error', message: 'ID invalide pour deletion' }));
+      }
+
+      const { error: deleteError } = await supabase.from('salon').delete().eq('id', id);
+
+      if (deleteError) {
+        peer.send(JSON.stringify({ type: 'error', message: deleteError.message }));
+      } else {
+        // Après suppression, on rediffuse la liste entière à tous
+        await broadcastSalons();
+      }
+      return;
+    }
+
+    if (text === 'fetch') {
+      await broadcastSalons();
+      return;
+    }
+
+    // Sinon, on peut renvoyer un écho
+    peer.send(JSON.stringify({ type: 'echo', message: text }));
   },
 
   close(peer) {
@@ -50,40 +89,6 @@ export default defineWebSocketHandler({
   },
 
   error(peer, err) {
-    console.error('[ws] error', err);
+    console.error('[ws] erreur', err);
   },
 });
-
-const handleOnPostgresChanges = (payload) => {
-  console.log('Change received:', payload);
-  peers.forEach((peer) => {
-    peer.send({ type: 'salon_new', salon: payload.new });
-    peer.send({
-      type: 'salon_new',
-      salon: payload.new,
-      message: 'Salon updated',
-    });
-  });
-};
-
-const handleOnPresenceSync = () => {
-  const newState = salon_changes.presenceState();
-  console.log('sync', newState);
-  peers.forEach((peer) => {
-    peer.send({ type: 'presence_sync', message: newState });
-  });
-};
-
-const handleOnPresenceJoin = ({ key, newPresences }) => {
-  console.log('join', key, newPresences);
-  peers.forEach((peer) => {
-    peer.send({ type: 'presence_join', key, newPresences, message: peer.toString() + ' joined' });
-  });
-};
-
-const handleOnPresenceLeave = ({ key, leftPresences }) => {
-  console.log('leave', key, leftPresences);
-  peers.forEach((peer) => {
-    peer.send({ type: 'presence_leave', key, leftPresences, message: peer.toString() + ' left' });
-  });
-};
