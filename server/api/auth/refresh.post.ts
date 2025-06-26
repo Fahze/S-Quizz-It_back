@@ -1,0 +1,57 @@
+export default defineEventHandler(async (event) => {
+  
+    // On vérifie la méthode de la requête
+    assertMethod(event, "POST");
+
+    // On récupère le refresh token
+    const body = await readBody(event);
+
+    const refreshToken : string = body.refresh_token;
+
+    // On vérifie que le refresh token est présent
+    if (!refreshToken) {
+        throw createError({
+            statusCode: 400,
+            statusMessage: "Refresh token requis.",
+        });
+    }
+    
+
+    try {
+        // On récupère le client Supabase
+        const supabase = await useSupabase(event);
+
+        // On tente de rafraîchir la session
+        const { data, error } = await supabase.auth.refreshSession({
+            refresh_token: refreshToken,
+        });
+
+        if (error) {
+            // On log l'erreur pour le debug
+            console.error("Erreur lors du rafraîchissement de la session:", error);
+
+            // On renvoie une erreur 401 si la session ne peut pas être rafraîchie
+            throw createError({
+                statusCode: 401,
+                statusMessage: "Erreur lors du rafraîchissement de la session.",
+            });
+        }
+
+        // On renvoie les données de la session rafraîchie
+        return {
+            user: data.user,
+            session: data.session,
+        };
+
+    } catch (error: any) {
+        // On log l'erreur pour le debug
+        console.error("Erreur lors du rafraîchissement de la session:", error);
+
+        // En cas d'erreur, on renvoie une erreur 500
+        throw createError({
+            statusCode: 500,
+            statusMessage: "Erreur lors du rafraîchissement de la session.",
+        });
+    }
+  
+});
