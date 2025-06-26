@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     
     const query = getQuery(event);
 
-    const niveauDifficulte = query.id ? parseInt(query.id as string) : null;
+    const niveauDifficulte = query.niveauDifficulte ? parseInt(query.niveauDifficulte as string) : null;
 
     // On vérifie que le niveau de difficulté est valide
 
