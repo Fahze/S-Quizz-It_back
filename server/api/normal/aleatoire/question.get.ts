@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // On récupère les questions depuis la base de données
-    const supabase = await useSupabase(event);
+    const supabase = await useSupabase();
 
     const { data: questions, error } = await supabase
         .from('question')
@@ -57,4 +57,58 @@ export default defineEventHandler(async (event) => {
         }));
 
     return randomQuestions;
+});
+
+defineRouteMeta({
+    openAPI: {
+        tags: ["questions"],
+        summary: "Récupération de questions aléatoires",
+        description: "Retourne 20 questions aléatoires selon le niveau de difficulté (paramètre niveauDifficulte).",
+        parameters: [
+            {
+                name: "niveauDifficulte",
+                in: "query",
+                required: false,
+                schema: { type: "integer" },
+                description: "Niveau de difficulté des questions (optionnel)."
+            }
+        ],
+        responses: {
+            200: {
+                description: "Liste de questions formatées.",
+                content: {
+                    "application/json": {
+                        schema: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    id: { type: "number" },
+                                    label: { type: "string" },
+                                    niveauDifficulte: { type: "number" },
+                                    type: { type: "string" },
+                                    reponses: {
+                                        type: "array",
+                                        items: {
+                                            type: "object",
+                                            properties: {
+                                                id: { type: "number" },
+                                                label: { type: "string" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                description: "Niveau de difficulté invalide.",
+            },
+            500: {
+                description: "Erreur lors de la récupération des questions.",
+            },
+        },
+    },
 });
