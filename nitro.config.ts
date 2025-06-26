@@ -5,4 +5,7 @@ export default defineNitroConfig({
     supabaseUrl: '', // URL de votre instance Supabase
     supabaseKey: '',  // Clé API de votre instance Supabase
   },
+  experimental: {
+    websocket: true
+  }
 });
