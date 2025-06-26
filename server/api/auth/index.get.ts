@@ -18,3 +18,27 @@ export default defineEventHandler(async (event) => {
     }
   
 });
+
+defineRouteMeta({
+    openAPI: {
+        tags: ["auth"],
+        summary: "Récupération de l'utilisateur authentifié",
+        description: "Retourne l'utilisateur actuellement authentifié (via le header Authorization).",
+        responses: {
+            200: {
+                description: "Utilisateur authentifié.",
+                content: {
+                    "application/json": {
+                        schema: {
+                            type: "object",
+                            description: "L'utilisateur authentifié.",
+                        },
+                    },
+                },
+            },
+            401: {
+                description: "Utilisateur non authentifié.",
+            },
+        },
+    },
+});

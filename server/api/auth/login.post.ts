@@ -53,4 +53,65 @@ export default defineEventHandler(async (event) => {
         });
     }
 
+
+});
+
+defineRouteMeta({
+    openAPI: {
+        tags: ["auth"],
+        summary: "Connexion d'un utilisateur",
+        description: "Route pour la connexion des utilisateurs.",
+        requestBody: {
+            content: {
+                "application/json": {
+                    schema: {
+                        type: "object",
+                        properties: {
+                            email: {
+                                type: "string",
+                                format: "email",
+                                description: "L'email de l'utilisateur.",
+                            },
+                            password: {
+                                type: "string",
+                                description: "Le mot de passe de l'utilisateur.",
+                            },
+                        },
+                        required: ["email", "password"],
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: "Connexion réussie.",
+                content: {
+                    "application/json": {
+                        schema: {
+                            type: "object",
+                            properties: {
+                                user: {
+                                    type: "object",
+                                    description: "Les informations de l'utilisateur connecté.",
+                                },
+                                session: {
+                                    type: "object",
+                                    description: "La session de l'utilisateur.",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            400: {
+                description: "Email et mot de passe requis.",
+            },
+            401: {
+                description: "Identifiants incorrects.",
+            },
+            500: {
+                description: "Erreur lors de la connexion.",
+            },
+        },
+    },
 });

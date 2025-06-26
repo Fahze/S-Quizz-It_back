@@ -55,3 +55,58 @@ export default defineEventHandler(async (event) => {
     }
   
 });
+
+defineRouteMeta({
+    openAPI: {
+        tags: ["auth"],
+        summary: "Rafraîchissement de session utilisateur",
+        description: "Permet de rafraîchir la session utilisateur via un refresh token.",
+        requestBody: {
+            content: {
+                "application/json": {
+                    schema: {
+                        type: "object",
+                        properties: {
+                            refresh_token: {
+                                type: "string",
+                                description: "Le refresh token de l'utilisateur.",
+                            },
+                        },
+                        required: ["refresh_token"],
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: "Session rafraîchie avec succès.",
+                content: {
+                    "application/json": {
+                        schema: {
+                            type: "object",
+                            properties: {
+                                user: {
+                                    type: "object",
+                                    description: "Les informations de l'utilisateur connecté.",
+                                },
+                                session: {
+                                    type: "object",
+                                    description: "La session rafraîchie de l'utilisateur.",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            400: {
+                description: "Refresh token requis.",
+            },
+            401: {
+                description: "Erreur lors du rafraîchissement de la session.",
+            },
+            500: {
+                description: "Erreur interne lors du rafraîchissement de la session.",
+            },
+        },
+    },
+});
