@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Database } from '~~/types/database.types';
 
 export default defineEventHandler(async (event) => {
     const config = useRuntimeConfig(event);
@@ -13,7 +14,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Create and return the Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
     return supabase;
 });
