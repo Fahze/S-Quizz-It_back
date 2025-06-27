@@ -51,18 +51,18 @@ export type Database = {
       }
       historiquePartie: {
         Row: {
-          idJoueur: string
           idPartie: number
+          idProfile: number
           score: number
         }
         Insert: {
-          idJoueur: string
-          idPartie?: number
+          idPartie: number
+          idProfile: number
           score: number
         }
         Update: {
-          idJoueur?: string
           idPartie?: number
+          idProfile?: number
           score?: number
         }
         Relationships: [
@@ -94,19 +94,22 @@ export type Database = {
         Row: {
           avatar: string | null
           elo: number
-          idProfile: string
+          id: number
+          idUser: string
           pseudo: string
         }
         Insert: {
           avatar?: string | null
           elo?: number
-          idProfile: string
+          id?: number
+          idUser: string
           pseudo: string
         }
         Update: {
           avatar?: string | null
           elo?: number
-          idProfile?: string
+          id?: number
+          idUser?: string
           pseudo?: string
         }
         Relationships: []
@@ -133,7 +136,15 @@ export type Database = {
           label?: string
           niveauDifficulte?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "question_idAuteur_fkey"
+            columns: ["idAuteur"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       questionReponse: {
         Row: {
@@ -203,7 +214,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: number
-          idAuteur: string | null
+          idAuteur: number | null
           label: string
           niveauDifficulte: number | null
           updated_at: string | null
@@ -212,7 +223,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: number
-          idAuteur?: string | null
+          idAuteur?: number | null
           label: string
           niveauDifficulte?: number | null
           updated_at?: string | null
@@ -221,12 +232,20 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: number
-          idAuteur?: string | null
+          idAuteur?: number | null
           label?: string
           niveauDifficulte?: number | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "quizz_idAuteur_fkey"
+            columns: ["idAuteur"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quizzQuestion: {
         Row: {
@@ -269,22 +288,28 @@ export type Database = {
       salon: {
         Row: {
           created_at: string
-          difficulté: number
+          difficulte: number
           id: number
+          j_actuelle: number | null
+          j_max: number | null
           label: string | null
           type: Database["public"]["Enums"]["typeRoom"]
         }
         Insert: {
           created_at?: string
-          difficulté: number
+          difficulte: number
           id?: number
+          j_actuelle?: number | null
+          j_max?: number | null
           label?: string | null
-          type: Database["public"]["Enums"]["typeRoom"]
+          type?: Database["public"]["Enums"]["typeRoom"]
         }
         Update: {
           created_at?: string
-          difficulté?: number
+          difficulte?: number
           id?: number
+          j_actuelle?: number | null
+          j_max?: number | null
           label?: string | null
           type?: Database["public"]["Enums"]["typeRoom"]
         }
@@ -313,7 +338,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      typeRoom: "Normal" | "Classé"
+      typeRoom: "normal" | "rapide" | "solo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -432,7 +457,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      typeRoom: ["Normal", "Classé"],
+      typeRoom: ["normal", "rapide", "solo"],
     },
   },
 } as const

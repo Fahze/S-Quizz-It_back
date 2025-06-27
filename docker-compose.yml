@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: .
+    container_name: squizzit-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - docker.env
+    restart: unless-stopped
+    networks:
+      - proxy
+
+
+networks:
+    proxy:
+      name: proxy_network
+      external: true
