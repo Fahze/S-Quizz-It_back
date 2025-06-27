@@ -15,4 +15,7 @@ export default defineNitroConfig({
   openAPI: {
     production: "runtime"
   },
+  routeRules: {
+    '/api/**' : { cors: true, headers: { 'access-control-allow-methods': 'GET,HEAD,PUT,PATCH,POST,DELETE' } },
+  }
 });
