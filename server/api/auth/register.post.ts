@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
     // On crée un profil utilisateur dans la table "profile"
     const { error: profileError } = await supabase.from("profile").insert({
-      idProfile: data.user.id,
+      idUser: data.user.id,
       pseudo: username,
     });
 
