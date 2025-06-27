@@ -5,8 +5,6 @@ export default defineEventHandler(async (event) => {
 
     const body = await readBody(event);
 
-    console.log("Tentative de connexion avec les données:", body.email);
-
     // On vérifie que le body contient les champs nécessaires
     if (!body.email || !body.password) {
         throw createError({
