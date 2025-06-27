@@ -12,4 +12,7 @@ export default defineNitroConfig({
     openAPI: true, // Activer l'OpenAPI
     websocket: true,
   },
+  openAPI: {
+    production: "runtime"
+  },
 });
