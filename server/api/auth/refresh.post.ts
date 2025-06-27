@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
     try {
         // On récupère le client Supabase
-        const supabase = await useSupabase(event);
+        const supabase = await useSupabase();
 
         // On tente de rafraîchir la session
         const { data, error } = await supabase.auth.refreshSession({

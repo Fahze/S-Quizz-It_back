@@ -1,6 +1,6 @@
 export default defineEventHandler(async (event) => {
   // Ecris ton code
-  const supabase = await useSupabase(event);
+  const supabase = await useSupabase();
 
   // On récupère l'utilisateur authentifié
   const accessToken = getHeader(event, "authorization");

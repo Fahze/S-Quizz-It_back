@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // On récupère le client Supabase
-    const supabase = await useSupabase(event);
+    const supabase = await useSupabase();
 
     // On tente de créer l'utilisateur
     const { data, error } = await supabase.auth.signUp({
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
     // On crée un profil utilisateur dans la table "profile"
     const { error: profileError } = await supabase.from("profile").insert({
-      idProfile: data.user.id,
+      idUser: data.user.id,
       pseudo: username,
     });
 

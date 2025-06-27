@@ -214,7 +214,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: number
-          idAuteur: string | null
+          idAuteur: number | null
           label: string
           niveauDifficulte: number | null
           updated_at: string | null
@@ -223,7 +223,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: number
-          idAuteur?: string | null
+          idAuteur?: number | null
           label: string
           niveauDifficulte?: number | null
           updated_at?: string | null
@@ -232,12 +232,20 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: number
-          idAuteur?: string | null
+          idAuteur?: number | null
           label?: string
           niveauDifficulte?: number | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "quizz_idAuteur_fkey"
+            columns: ["idAuteur"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quizzQuestion: {
         Row: {
@@ -282,6 +290,8 @@ export type Database = {
           created_at: string
           difficulte: number
           id: number
+          j_actuelle: number | null
+          j_max: number | null
           label: string | null
           type: Database["public"]["Enums"]["typeRoom"]
         }
@@ -289,13 +299,17 @@ export type Database = {
           created_at?: string
           difficulte: number
           id?: number
+          j_actuelle?: number | null
+          j_max?: number | null
           label?: string | null
-          type: Database["public"]["Enums"]["typeRoom"]
+          type?: Database["public"]["Enums"]["typeRoom"]
         }
         Update: {
           created_at?: string
           difficulte?: number
           id?: number
+          j_actuelle?: number | null
+          j_max?: number | null
           label?: string | null
           type?: Database["public"]["Enums"]["typeRoom"]
         }
