@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '~~/types/database.types';
 
-export default defineEventHandler(async (event) => {
-    const config = useRuntimeConfig(event);
+export default async function useSupabaseAdmin() {
+    const config = useRuntimeConfig();
     const supabaseUrl = config.supabaseUrl;
     const supabaseAdminKey = config.supabaseAdminKey;
     
@@ -24,5 +24,5 @@ export default defineEventHandler(async (event) => {
     );
 
     return supabaseAdmin;
-});
+};
     
