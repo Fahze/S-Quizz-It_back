@@ -1,88 +1,154 @@
-/* import { stripHtml } from 'string-strip-html';
- */
 export default defineEventHandler(async (event) => {
     assertMethod(event, 'POST');
-    
+
     const body = await readBody(event);
     const { idQuestion, idReponse, idJoueur, tempsReponse, type, reponseJoueur } = body;
 
     if (!idQuestion || !idJoueur || isNaN(tempsReponse) || !type) {
-        console.error('Champs requis manquants ou invalides:', body);
+        console.error('Champs requis manquants ou invalides', body);
         throw createError({
             statusCode: 400,
             statusMessage: 'Champs requis manquants ou invalides'
         });
     }
 
-    const supabase = await useSupabase(event);
+    const supabase = await useSupabase();
     let correcte = false;
+    let fautesOrthographe = false;
+    let distance = 0;
+    let malus = 0;
+    let bonneReponse: string | null = null;
 
-    console.log(`Vérification de la réponse pour la question ${idQuestion}, type: ${type}, idReponse: ${idReponse}`);
+    const normalize = (str: string) =>
+        str.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const levenshtein = (a: string, b: string) => {
+        const matrix: number[][] = Array.from({ length: a.length + 1 }, () =>
+            Array(b.length + 1).fill(0)
+        );
+
+        for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+        for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= a.length; i++) {
+            for (let j = 1; j <= b.length; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j - 1] + cost
+                );
+            }
+        }
+        return matrix[a.length][b.length];
+    };
+
+    const { data: questionData, error: errorQuestion } = await supabase
+        .from('question')
+        .select('niveauDifficulte')
+        .eq('id', idQuestion)
+        .single();
+
+    if (errorQuestion || !questionData) {
+        console.error('Erreur récupération niveau difficulté', errorQuestion);
+        throw createError({ statusCode: 500, statusMessage: 'Erreur récupération niveau difficulté' });
+    }
+
+    const niveauDifficulte = questionData.niveauDifficulte;
+
     if (type === 'qcm') {
-        // Vérification pour les questions de type QCM
         if (!idReponse) {
-            console.error('idReponse requis pour QCM');
+            console.error('idReponse requis pour QCM', body);
             throw createError({ statusCode: 400, statusMessage: 'idReponse requis pour QCM' });
         }
 
         const { data: reponseqcm, error } = await supabase
             .from('questionReponse')
-            .select('value')
+            .select('value, reponse(label)')
             .eq('idQuestion', idQuestion)
             .eq('idReponse', idReponse)
             .single();
 
-        if (error) {
-            console.error('Erreur lors de la vérification de la réponse QCM:', error.message);
+        if (error || !reponseqcm) {
+            console.error('Erreur récupération réponse QCM', error);
             throw createError({ statusCode: 500, statusMessage: 'Erreur vérification QCM' });
         }
 
-
-        correcte = reponseqcm.value === true;
+        correcte = reponseqcm?.value === true;
+        bonneReponse = reponseqcm.reponse?.label || null;
 
     } else if (type === 'input') {
-        // Vérification pour les questions de type input
         if (!reponseJoueur || typeof reponseJoueur !== 'string') {
-            console.error('reponseJoueur est requis pour input');
+            console.error('reponseJoueur est requis pour input', body);
             throw createError({ statusCode: 400, statusMessage: 'reponseJoueur est requis pour input' });
         }
 
-        const { data:reponseinput, error } = await supabase
-            .from('reponse')
-            .select('label')
-            .eq('id', (await supabase
-                .from('questionReponse')
-                .select('idReponse')
-                .eq('idQuestion', idQuestion)
-                .eq('value', true)
-                .single()).data.idReponse)
+        const { data: repIdData, error: errId } = await supabase
+            .from('questionReponse')
+            .select('idReponse')
+            .eq('idQuestion', idQuestion)
+            .eq('value', true)
             .single();
 
-        if (error || !reponseinput) {
-            console.error('Erreur lors de la récupération de la réponse input:', error?.message || 'Aucune donnée trouvée');
-            throw createError({ statusCode: 500, statusMessage: 'Erreur vérification input' });
+        if (errId || !repIdData) {
+            console.error('Erreur récupération réponse correcte', errId);
+            throw createError({ statusCode: 500, statusMessage: 'Erreur récupération réponse correcte' });
         }
 
-        // Comparaison insensible à la casse et aux accents
-        const normalize = (str: string) =>
-            str.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const { data: reponseinput, error: errLabel } = await supabase
+            .from('reponse')
+            .select('label')
+            .eq('id', repIdData.idReponse)
+            .single();
 
-        correcte = normalize(reponseinput.label) === normalize(reponseJoueur);
+        if (errLabel || !reponseinput) {
+            console.error('Erreur récupération texte réponse', errLabel);
+            throw createError({ statusCode: 500, statusMessage: 'Erreur récupération texte réponse' });
+        }
+
+        const bonne = normalize(reponseinput.label);
+        const joueur = normalize(reponseJoueur);
+        distance = levenshtein(bonne, joueur);
+        bonneReponse = reponseinput.label;
+
+        let tolerance = 0;
+        if (niveauDifficulte === 1) tolerance = 3;
+        else if (niveauDifficulte === 2) tolerance = 2;
+        else if (niveauDifficulte === 3) tolerance = 0;
+
+        correcte = distance <= tolerance;
+
+        if (correcte && distance > 0) {
+            fautesOrthographe = true;
+            malus = Math.min(150, distance * 50);
+        }
     } else {
-        console.error('Type de question invalide:', type);
+        console.error('Type de question invalide', type);
         throw createError({ statusCode: 400, statusMessage: 'Type de question invalide' });
     }
 
-    // Calcul score
+    let malusParSeconde;
+    switch (niveauDifficulte) {
+        case 1: malusParSeconde = 10; break;
+        case 2: malusParSeconde = 15; break;
+        case 3: malusParSeconde = 20; break;
+        default: malusParSeconde = 15; break;
+    }
+
     let pointsGagnes = 0;
     if (correcte) {
-        pointsGagnes = Math.max(100, 1000 - Math.floor(tempsReponse * 10));
+        pointsGagnes = Math.max(100, 1000 - Math.floor(tempsReponse * malusParSeconde));
+        pointsGagnes = Math.max(0, pointsGagnes - malus);
     }
 
     return {
         idJoueur,
         correcte,
+        fautesOrthographe,
+        distanceLevenshtein: distance,
+        malus,
         tempsReponse,
-        pointsGagnes
+        pointsGagnes,
+        bonneReponse
     };
 });
