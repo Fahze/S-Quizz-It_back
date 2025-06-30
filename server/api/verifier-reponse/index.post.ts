@@ -159,7 +159,16 @@ defineRouteMeta({
   openAPI: {
     tags: ["réponses"],
     summary: "Vérifie la réponse d’un joueur à une question",
-    description: "Permet de vérifier si une réponse envoyée par un joueur est correcte (QCM ou texte). Retourne le score, la validité, les fautes d'orthographe éventuelles et la bonne réponse.",
+    description: 
+      "Permet de vérifier si une réponse envoyée par un joueur est correcte (QCM ou texte). " +
+      "Propriétés attendues dans le body : " +
+      "idQuestion (number, requis) : Identifiant de la question à vérifier. " +
+      "idReponse (number, optionnel) : Identifiant de la réponse choisie (requis pour les QCM). " +
+      "idJoueur (number, requis) : Identifiant du joueur qui répond. " +
+      "tempsReponse (number, requis) : Temps mis pour répondre (en secondes). " +
+      "type (string, requis) : Type de la question, soit 'qcm' (choix multiple) soit 'input' (réponse texte). " +
+      "reponseJoueur (string, optionnel) : Réponse saisie par le joueur (requis pour les questions de type input). " +
+      "Retourne le score, la validité, les fautes d'orthographe éventuelles et la bonne réponse.",
     requestBody: {
       required: true,
       content: {
