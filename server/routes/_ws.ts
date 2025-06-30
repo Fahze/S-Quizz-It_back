@@ -3,9 +3,10 @@ import salonService from '../websockets/salon.service';
 
 export default defineWebSocketHandler({
   async open(peer) {
-    console.log(peer.websocket.protocol);
-    if (peer.websocket.protocol.startsWith('auth ')) {
-      const token = peer.websocket.protocol.split(' ')[1];
+    const authProtocol = peer.request.headers.get('sec-websocket-protocol').split(',');
+
+    if (authProtocol[0] === 'auth') {
+      const token = authProtocol[1];
       if (!token) {
         peer.send({ user: 'server', message: 'Veuillez completer le protocol comme "auth <token>"' });
         peer.close();
