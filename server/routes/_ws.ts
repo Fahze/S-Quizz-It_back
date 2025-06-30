@@ -1,6 +1,5 @@
 import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
 import salonService from '../websockets/salon.service';
-import { SalonState } from '~~/types/websocket.types';
 import { salonsEnCours } from '~/websockets/websocket.state';
 
 export default defineWebSocketHandler({
