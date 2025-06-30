@@ -1,13 +1,9 @@
-export default defineEventHandler(async (event) => {
+export default async function getUserWithToken(access_token: string) {
   // Ecris ton code
   const supabase = await useSupabase();
 
   // On récupère l'utilisateur authentifié
-  const accessToken = getHeader(event, 'authorization');
-
-  if (!accessToken) {
-    throw new Error('Authorization header is missing');
-  }
+  const accessToken = access_token;
 
   // On vérifie le token d'accès
   if (!accessToken.startsWith('Bearer ')) {
@@ -39,5 +35,4 @@ export default defineEventHandler(async (event) => {
     user: userFetch.user,
     profile: profile,
   };
-  
-});
+}
