@@ -11,6 +11,7 @@ class SalonService {
     const { data: salons, error } = await supabase.from('salon').select('*');
     const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
 
+    peer.send(JSON.stringify(payload));
     peer.publish(topic, JSON.stringify(payload));
   }
 
@@ -50,7 +51,7 @@ class SalonService {
     }
   }
 
-  async playerJoinSalon(peer, salonId: number) {
+  async playerJoinSalon(peer, salonId: number, salonsEnCours: Map<any, any>) {
     const supabase = await useSupabase();
     if (isNaN(salonId)) {
       return peer.send({ type: 'error', message: 'ID invalide pour rejoindre le salon' });
@@ -84,6 +85,9 @@ class SalonService {
     // Envoyer un message de succès
 
     peer.subscribe(`salon-${salonId}`);
+    salonsEnCours.get(salonId).joueurs.set(peer.id, { userId: peer.userId, score: 0, connected: true });
+    peer.currentSalon = salonId;
+
     peer.unsubscribe('salons');
 
     peer.publish(`salon-${salonId}`, { type: 'join', salonId, user: peer.id });
@@ -91,7 +95,7 @@ class SalonService {
     peer.send({ user: 'server', type: 'success', message: `Vous avez rejoint le salon ${salon.label}` });
   }
 
-  async playerLeaveSalon(peer, salonId: number) {
+  async playerLeaveSalon(peer, salonId: number, salonsEnCours: Map<any, any>) {
     const supabase = await useSupabase();
     if (isNaN(salonId)) {
       return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour quitter le salon' });
@@ -115,6 +119,8 @@ class SalonService {
 
     // Envoyer un message de succès
     peer.unsubscribe(`salon-${salonId}`);
+    salonsEnCours.get(salonId).joueurs.delete(peer.id);
+
     peer.subscribe('salons');
 
     peer.publish(`salon-${salonId}`, JSON.stringify({ type: 'leave', salonId, user: peer.id }));
