@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import salonService from '~/websockets/salon.service';
-import { salonsEnCours } from '~/websockets/websocket.state';
-import { SalonState } from '~~/types/websocket.types';
+import { salonsEnCours, SalonState } from '~/websockets/websocket.state';
 
 export async function connectToTopic(peer, topic: string) {
   if (!peer || !topic) {
@@ -53,16 +52,13 @@ export async function authenticatePeer(peer: any, supabase: any, token: string):
 }
 
 // Nettoyer et quitter tous les salons d'un peer
-type SalonServiceType = {
-  playerLeaveSalon: (peer: any, salonId: number, salonsEnCours: Map<any, any>) => Promise<void>;
-};
-export function leaveAllSalons(peer: any, salonsEnCours: Map<any, any>, salonService: SalonServiceType) {
+export function leaveAllSalons(peer: any) {
   peer.topics.forEach((topic: string) => {
     if (topic.startsWith('salon-')) {
       const idStr = topic.split('-')[1];
       const id = parseInt(idStr, 10);
       if (!isNaN(id)) {
-        salonService.playerLeaveSalon(peer, id, salonsEnCours);
+        salonService.playerLeaveSalon(peer, id);
       }
     }
     peer.unsubscribe(topic);
@@ -75,7 +71,7 @@ export function getOrCreateSalon(salonId: number): SalonState {
     salon = {
       joueurs: new Map(),
       partieCommencee: false,
-      absents: []
+      questions: [],
     };
     salonsEnCours.set(salonId, salon);
   }
