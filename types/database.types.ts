@@ -281,6 +281,7 @@ export type Database = {
       };
       salon: {
         Row: {
+          commence: boolean;
           created_at: string;
           difficulte: number;
           id: number;
@@ -290,6 +291,7 @@ export type Database = {
           type: Database['public']['Enums']['typeRoom'];
         };
         Insert: {
+          commence?: boolean;
           created_at?: string;
           difficulte: number;
           id?: number;
@@ -299,6 +301,7 @@ export type Database = {
           type?: Database['public']['Enums']['typeRoom'];
         };
         Update: {
+          commence?: boolean;
           created_at?: string;
           difficulte?: number;
           id?: number;

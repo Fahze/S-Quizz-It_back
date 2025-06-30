@@ -59,11 +59,15 @@ class SalonService {
     // Vérifier si le salon existe
     const { data: salon, error: fetchError, status, statusText } = await supabase.from('salon').select('*').eq('id', salonId).single();
     if (fetchError || !salon) {
-      return peer.send({ type: 'error', message: 'Salon introuvable' });
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    }
+    // Vérifier si le salon à commencé une partie
+    if (salon.commence) {
+      return peer.send({ user: 'server', type: 'error', message: 'Le salon a déjà commencé une partie' });
     }
     // Vérifier si le salon est plein
     if (salon.j_actuelle == salon.j_max) {
-      return peer.send({ type: 'error', message: 'Salon plein' });
+      return peer.send({ user: 'server', type: 'error', message: 'Salon plein' });
     }
     peer.send({ user: 'system', message: status + ' ' + statusText });
 
@@ -74,7 +78,7 @@ class SalonService {
       .eq('id', salonId);
 
     if (updateError) {
-      return peer.send({ type: 'error', message: updateError.message });
+      return peer.send({ user: 'server', type: 'error', message: updateError.message });
     }
 
     // Envoyer un message de succès
@@ -84,19 +88,19 @@ class SalonService {
 
     peer.publish(`salon-${salonId}`, { type: 'join', salonId, user: peer.id });
     peer.publish(`salon-${salonId}`, { user: `salon-${salonId}`, message: `${peer.id} a rejoint le salon` });
-    peer.send({ type: 'success', message: `Vous avez rejoint le salon ${salon.label}` });
+    peer.send({ user: 'server', type: 'success', message: `Vous avez rejoint le salon ${salon.label}` });
   }
 
   async playerLeaveSalon(peer, salonId: number) {
     const supabase = await useSupabase();
     if (isNaN(salonId)) {
-      return peer.send({ type: 'error', message: 'ID invalide pour quitter le salon' });
+      return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour quitter le salon' });
     }
 
     // Vérifier si le salon existe
     const { data: salon, error: fetchError } = await supabase.from('salon').select('*').eq('id', salonId).single();
     if (fetchError || !salon) {
-      return peer.send({ type: 'error', message: 'Salon introuvable' });
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
     }
 
     // Décrémenter le nombre de joueurs actuels
@@ -106,7 +110,7 @@ class SalonService {
       .eq('id', salonId);
 
     if (updateError) {
-      return peer.send({ type: 'error', message: updateError.message });
+      return peer.send({ user: 'server', type: 'error', message: updateError.message });
     }
 
     // Envoyer un message de succès
@@ -115,7 +119,7 @@ class SalonService {
 
     peer.publish(`salon-${salonId}`, JSON.stringify({ type: 'leave', salonId, user: peer.id }));
     peer.publish(`salon-${salonId}`, { user: `salon-${salonId}`, message: `${peer.id} a quitté le salon` });
-    peer.send({ type: 'success', message: `Vous avez quitté le salon ${salon.label}` });
+    peer.send({ user: 'server', type: 'success', message: `Vous avez quitté le salon ${salon.label}` });
   }
 }
 

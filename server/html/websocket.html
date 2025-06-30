@@ -71,7 +71,7 @@
             }
 
             log("ws", "Connecting to", url, "...");
-            ws = new WebSocket(url);
+            ws = new WebSocket(url, "auth eyJhbGciOiJIUzI1NiIsImtpZCI6ImVua0hYMi8rRVNCN2lwLzciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3JjY3poeHdocnV3enpyaGJkcndwLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1MDU2OWYwNS0yYWZhLTQ5MWQtYjVhOC1kMzc3NTYyYTVhNTYiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUxMjgwODA2LCJpYXQiOjE3NTEyNzcyMDYsImVtYWlsIjoiZW56b0BnbWFpbC5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoiZW56b0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJzdWIiOiI1MDU2OWYwNS0yYWZhLTQ5MWQtYjVhOC1kMzc3NTYyYTVhNTYifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc1MTI3NzIwNn1dLCJzZXNzaW9uX2lkIjoiODMzOTdkNmEtOTIyNi00MGVmLTllYzAtYTkyN2YxN2Y3OWYyIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.VIS2l_kXaJSGZLpquHAAylf4O94I9X1tdzj2g9BF0_Q");
 
             ws.addEventListener("message", async (event) => {
                 let data =

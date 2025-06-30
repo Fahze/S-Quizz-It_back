@@ -3,25 +3,50 @@ import salonService from '../websockets/salon.service';
 
 export default defineWebSocketHandler({
   async open(peer) {
-    connectToTopic(peer, 'salons');
+    console.log(peer.websocket.protocol);
+    if (peer.websocket.protocol.startsWith('auth ')) {
+      const token = peer.websocket.protocol.split(' ')[1];
+      if (!token) {
+        peer.send({ user: 'server', message: 'Veuillez completer le protocol comme "auth <token>"' });
+        peer.close();
+        return;
+      } else {
+        const supabase = await useSupabase();
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser(token);
+        if (error || !user) {
+          peer.send({ user: 'server', type: 'error', message: 'Authentification invalide' });
+          peer.close();
+          return;
+        }
+        peer.userId = user.id;
+        console.log(`[ws] ${peer.userId} authentifié avec succès`);
+        connectToTopic(peer, 'salons');
+      }
+      peer.send({ user: 'server', message: `Bienvenue sur le serveur de S-Quizz It !` });
+    } else {
+      peer.send({ user: 'server', type: 'error', message: 'Veuillez vous connecter avec un token valide' });
+      peer.close();
+    }
   },
 
   async message(peer, message): Promise<any> {
     const text = message.text();
-
     if (text === 'fetch') {
       await salonService.broadcastSalons(peer, 'salons');
       return;
     }
 
     if (text.startsWith('connect-')) {
-      if (!peer.topics.has(`salon-${text.split('-')[1]}`)) {
-        await salonService.playerJoinSalon(peer, parseInt(text.split('-')[1], 10));
-      } else {
+      if (peer.topics.has(`salon-${text.split('-')[1]}`)) {
         peer.send({
           user: 'server',
           message: 'Vous êtes déjà dans ce salon',
         });
+      } else {
+        await salonService.playerJoinSalon(peer, parseInt(text.split('-')[1], 10));
       }
       return;
     }
@@ -36,7 +61,7 @@ export default defineWebSocketHandler({
       }
       return;
     }
-    peer.send({ user: 'server', message: text });
+    peer.send({ user: peer.id, message: text });
   },
 
   close(peer) {
