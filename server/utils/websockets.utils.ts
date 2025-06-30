@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import salonService from '~/websockets/salon.service';
+import { salonsEnCours } from '~/websockets/websocket.state';
+import { SalonState } from '~~/types/websocket.types';
 
 export async function connectToTopic(peer, topic: string) {
   if (!peer || !topic) {
@@ -65,4 +67,17 @@ export function leaveAllSalons(peer: any, salonsEnCours: Map<any, any>, salonSer
     }
     peer.unsubscribe(topic);
   });
+}
+
+export function getOrCreateSalon(salonId: number): SalonState {
+  let salon = salonsEnCours.get(salonId);
+  if (!salon) {
+    salon = {
+      joueurs: new Map(),
+      partieCommencee: false,
+      absents: []
+    };
+    salonsEnCours.set(salonId, salon);
+  }
+  return salon;
 }

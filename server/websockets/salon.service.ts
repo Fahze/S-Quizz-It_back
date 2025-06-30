@@ -1,3 +1,5 @@
+import { getOrCreateSalon } from '~/utils/websockets.utils';
+
 class SalonService {
   // Utilitaire pour générer un label aléatoire
   genLabel(label: string): string {
@@ -82,7 +84,15 @@ class SalonService {
       return peer.send({ user: 'server', type: 'error', message: updateError.message });
     }
 
-    // Envoyer un message de succès
+    // Prépare l'état en mémoire
+    const salonMemoire = getOrCreateSalon(salonId);
+
+    // Ajout du joueur
+    salonMemoire.joueurs.set(peer.id, {
+      userId: peer.userId,
+      score: 0,
+      connected: true,
+    });
 
     peer.subscribe(`salon-${salonId}`);
     peer.currentSalon = salonId;
@@ -116,9 +126,14 @@ class SalonService {
       return peer.send({ user: 'server', type: 'error', message: updateError.message });
     }
 
+    const salonMemoire = getOrCreateSalon(salonId);
+
+    // Ajout du joueur
+
     // Envoyer un message de succès
     peer.unsubscribe(`salon-${salonId}`);
     peer.currentSalon = null;
+    salonMemoire.joueurs.delete(peer.id);
 
     peer.subscribe('salons');
 
