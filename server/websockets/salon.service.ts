@@ -85,7 +85,6 @@ class SalonService {
     // Envoyer un message de succès
 
     peer.subscribe(`salon-${salonId}`);
-    salonsEnCours.get(salonId).joueurs.set(peer.id, { userId: peer.userId, score: 0, connected: true });
     peer.currentSalon = salonId;
 
     peer.unsubscribe('salons');
@@ -119,7 +118,7 @@ class SalonService {
 
     // Envoyer un message de succès
     peer.unsubscribe(`salon-${salonId}`);
-    salonsEnCours.get(salonId).joueurs.delete(peer.id);
+    peer.currentSalon = null;
 
     peer.subscribe('salons');
 

@@ -1,7 +1,13 @@
 import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
 import salonService from '../websockets/salon.service';
 
-const salonsEnCours = new Map();
+interface SalonState {
+  joueurs: Map<string, { userId: string; score: number; connected: boolean }>;
+  partieCommencee: boolean;
+  absents: string[];
+}
+
+const salonsEnCours = new Map<number, SalonState>();
 
 export default defineWebSocketHandler({
   async open(peer) {
@@ -42,7 +48,8 @@ export default defineWebSocketHandler({
           message: 'Vous êtes déjà dans ce salon',
         });
       } else {
-        await salonService.playerJoinSalon(peer, parseInt(text.split('-')[1], 10), salonsEnCours);
+        await salonService.playerJoinSalon(peer, joinId, salonsEnCours);
+        salonsEnCours.get(joinId).joueurs.set(peer.id, { userId: peer.userId, score: 0, connected: true });
       }
       return;
     }
@@ -50,7 +57,8 @@ export default defineWebSocketHandler({
     const leaveId = extractId(text, 'leave');
     if (leaveId) {
       if (peer.currentSalon === leaveId) {
-        await salonService.playerLeaveSalon(peer, parseInt(text.split('-')[1], 10), salonsEnCours);
+        await salonService.playerLeaveSalon(peer, leaveId, salonsEnCours);
+        salonsEnCours.get(leaveId).joueurs.delete(peer.id);
       } else {
         peer.send({
           user: 'server',
@@ -60,6 +68,8 @@ export default defineWebSocketHandler({
       }
       return;
     }
+    console.log('OK', salonsEnCours);
+
     peer.send({ user: peer.id, message: text });
   },
 
