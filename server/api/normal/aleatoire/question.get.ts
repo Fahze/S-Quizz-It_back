@@ -1,4 +1,4 @@
-import questionService from '~/websockets/question.service';
+import questionService from '~/services/question.service';
 
 export default defineEventHandler(async (event) => {
   // On verifie la méthode de la requête`

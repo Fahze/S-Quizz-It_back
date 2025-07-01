@@ -18,7 +18,7 @@ export interface AnswerResult {
 }
 
 export interface SalonState {
-  joueurs: Map<string, { userId: string; score: number; connected: boolean }>;
+  joueurs: Map<string, { userId: string; score: number; connected: boolean; isReady: boolean }>;
   partieCommencee: boolean;
   questions: Question[];
 }

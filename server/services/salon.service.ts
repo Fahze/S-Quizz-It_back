@@ -1,4 +1,4 @@
-import { getOrCreateSalon } from '~/utils/websockets.utils';
+import { getOrCreateSalon, saveSalonState } from '~/utils/websockets.utils';
 
 class SalonService {
   // Utilitaire pour générer un label aléatoire
@@ -33,7 +33,7 @@ class SalonService {
     if (insertError) {
       peer.send({ type: 'error', message: insertError.message });
     } else {
-      await this.broadcastSalons(peer, 'chat');
+      await this.broadcastSalons(peer, 'salons');
     }
   }
 
@@ -123,14 +123,16 @@ class SalonService {
     }
 
     // Prépare l'état en mémoire
+    leaveAllSalons(peer);
+
     const salonMemoire = getOrCreateSalon(salonId);
     salonMemoire.joueurs.set(peer.id, {
       userId: peer.userId,
       score: 0,
       connected: true,
+      isReady: false,
     });
-
-    leaveAllSalons(peer);
+    saveSalonState(salonId, salonMemoire);
 
     peer.subscribe(`salon-${salonId}`);
     peer.currentSalon = salonId;
@@ -163,6 +165,7 @@ class SalonService {
 
     const salonMemoire = getOrCreateSalon(salonId);
     salonMemoire.joueurs.delete(peer.id);
+    saveSalonState(salonId, salonMemoire);
 
     peer.unsubscribe(`salon-${salonId}`);
     peer.currentSalon = null;

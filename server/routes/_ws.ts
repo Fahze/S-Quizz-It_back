@@ -1,7 +1,7 @@
 import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
-import salonService from '../websockets/salon.service';
+import salonService from '../services/salon.service';
 import { salonsEnCours } from '~/websockets/websocket.state';
-import gameService from '~/websockets/game.service';
+import gameService from '~/services/game.service';
 
 export default defineWebSocketHandler({
   async open(peer) {
@@ -27,9 +27,18 @@ export default defineWebSocketHandler({
   },
 
   async message(peer: any, message): Promise<any> {
-    const text = message.text();
+    const text = message.text().trim();
     if (text === 'fetch') {
       await salonService.broadcastSalons(peer, 'salons');
+      console.log(
+        salonsEnCours,
+        salonsEnCours.forEach((salon, key) => {
+          salon.joueurs.forEach((joueur) => {
+            console.log(joueur);
+          });
+        })
+      );
+      peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
     }
 
     if (text === 'rapide') {
@@ -62,6 +71,13 @@ export default defineWebSocketHandler({
         });
       }
       return;
+    }
+
+    const readyId = extractId(text, 'ready');
+    if (readyId) {
+      if (peer.currentSalon === readyId) {
+        await gameService.handleReady(peer, readyId);
+      }
     }
 
     const startId = extractId(text, 'start');

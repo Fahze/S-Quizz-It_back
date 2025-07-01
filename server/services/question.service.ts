@@ -1,4 +1,4 @@
-import { AnswerResult, Question } from './websocket.state';
+import { AnswerResult, Question } from '../websockets/websocket.state';
 
 class QuestionService {
   async getQuestions(niveauDifficulte): Promise<Question[]> {

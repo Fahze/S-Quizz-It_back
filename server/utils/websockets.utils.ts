@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import salonService from '~/websockets/salon.service';
+import salonService from '~/services/salon.service';
 import { salonsEnCours, SalonState } from '~/websockets/websocket.state';
 
 export async function connectToTopic(peer, topic: string) {
@@ -40,14 +40,9 @@ export function extractId(text: string, prefix: string): number | null {
 // Authentifier un peer via Supabase JWT
 type Supabase = ReturnType<typeof createClient>;
 export async function authenticatePeer(peer: any, supabase: any, token: string): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  peer.userId = user.id;
+  const { user, profile } = await getUserWithToken(token);
+  peer.user = user;
+  peer.profile = profile;
   return user.id;
 }
 
@@ -76,4 +71,12 @@ export function getOrCreateSalon(salonId: number): SalonState {
     salonsEnCours.set(salonId, salon);
   }
   return salon;
+}
+
+export function getSalonState(salonId: number): SalonState | undefined {
+  return salonsEnCours.get(salonId);
+}
+
+export function saveSalonState(salonId: number, salonState: SalonState) {
+  salonsEnCours.set(salonId, salonState);
 }

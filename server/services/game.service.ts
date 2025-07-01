@@ -1,10 +1,32 @@
+import { getSalonState, saveSalonState } from '~/utils/websockets.utils';
 import questionService from './question.service';
 
 class GameService {
+  async handleReady(peer, salonId) {
+    const salonMemoire = getSalonState(salonId);
+    if (!salonMemoire) {
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    }
+    if (!salonMemoire.joueurs.has(peer.id)) {
+      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
+    }
+
+    const joueur = salonMemoire.joueurs.get(peer.id);
+    joueur.isReady = !joueur.isReady; // Inverse l'état de readiness
+    salonMemoire.joueurs.set(peer.id, joueur);
+    saveSalonState(salonId, salonMemoire);
+    peer.publish(
+      `salon-${salonId}`,
+      JSON.stringify({ user: `salon-${salonId}`, type: 'ready', salonId, message: `${peer.id} est ${joueur.isReady ? 'prêt' : 'pas prêt'}` })
+    );
+    peer.send({ user: `salon-${salonId}`, type: 'ready', salonId, message: `${peer.id} est ${joueur.isReady ? 'prêt' : 'pas prêt'}` });
+  }
+
   async startGame(peer, salonId) {
     const supabase = await useSupabase();
+    const salonMemoire = getSalonState(salonId);
 
-    if (isNaN(salonId)) {
+    if (isNaN(salonId) || !salonMemoire) {
       return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour démarrer le jeu' });
     }
     // Vérifier si le salon existe
@@ -13,14 +35,13 @@ class GameService {
       return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
     }
 
-    const salonMemoire = getOrCreateSalon(salonId);
-
     await questionService
       .getQuestions(salon.difficulte)
       .then((questions) => {
         if (questions.length === 0) {
           return peer.send({ user: 'server', type: 'error', message: 'Aucune question disponible pour ce niveau de difficulté' });
         }
+
         salonMemoire.questions = questions;
       })
       .catch((error) => {
@@ -31,12 +52,6 @@ class GameService {
 
     let timer = 3; // Démarre le compte à rebours à 3 secondes
     const startTimer = setInterval(() => {
-      if (timer <= 0) {
-        clearInterval(startTimer);
-        peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game-start', salonId, message: salonMemoire }));
-        peer.send({ user: 'server', type: 'success', message: `Le jeu a commencé dans le salon ${salon.label}` });
-        return;
-      }
       peer.publish(
         `salon-${salonId}`,
         JSON.stringify({
@@ -47,11 +62,20 @@ class GameService {
         })
       );
       timer--;
+
+      if (timer <= 0) {
+        clearInterval(startTimer);
+        peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game-start', salonId, message: salonMemoire }));
+        peer.send({ user: 'server', type: 'success', message: `Le jeu a commencé dans le salon ${salon.label}` });
+        salonMemoire.partieCommencee = true;
+        saveSalonState(salonId, salonMemoire);
+      }
     }, 1000);
   }
 
   async answerQuestion(peer, salonId, questionId, answer) {
-    const salonMemoire = getOrCreateSalon(salonId);
+    const salonMemoire = getSalonState(salonId);
+
     //TODO: Implement logic to check the answer against the question
   }
 
