@@ -1,4 +1,4 @@
-import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
+import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendErrorToClient } from '~/utils/websockets.utils';
 import salonService from '../services/salon.service';
 import { salonsEnCours } from '~/websockets/websocket.state';
 import gameService from '~/services/game.service';
@@ -9,7 +9,7 @@ export default defineWebSocketHandler({
     const protocolHeader = peer.request.headers.get('sec-websocket-protocol');
     const token = extractToken(protocolHeader);
     if (!token) {
-      sendError(peer, 'Veuillez compléter le protocole comme "auth,<token>"');
+      sendErrorToClient(peer, 'Veuillez compléter le protocole comme "auth,<token>"');
       return peer.close();
     }
 
@@ -17,7 +17,7 @@ export default defineWebSocketHandler({
     const supabase = await useSupabase();
     const userId = await authenticatePeer(peer, supabase, token);
     if (!userId) {
-      sendError(peer, 'Authentification invalide');
+      sendErrorToClient(peer, 'Authentification invalide');
       return peer.close();
     }
 
