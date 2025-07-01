@@ -28,12 +28,8 @@ export default defineEventHandler(async (event) => {
     throw new Error(error.message || "Erreur lors de la récupération de l'utilisateur");
   }
 
-  // On récupère le profil utilisateur
-  const { data: profile, error: profileFetchError } = await supabase.from('profile').select('*').eq('idUser', userFetch.user.id).single();
-
-  if (profileFetchError) {
-    throw new Error(profileFetchError.message || 'Erreur lors de la récupération du profil utilisateur');
-  }
+  // On récupère le profil de l'utilisateur
+  const profile = await getProfile(userFetch.user.id);
 
   return {
     user: userFetch.user,

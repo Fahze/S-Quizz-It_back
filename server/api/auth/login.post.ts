@@ -34,10 +34,14 @@ export default defineEventHandler(async (event) => {
             });
         }
 
+        // On récupère le profil de l'utilisateur connecté
+        const profile = await getProfile(data.user.id);
+
         // On renvoie les données de l'utilisateur connecté
         return {
             user: data.user,
             session: data.session,
+            profile
         }
         
     } catch (error: any) {
@@ -96,6 +100,10 @@ defineRouteMeta({
                                     type: "object",
                                     description: "La session de l'utilisateur.",
                                 },
+                                profile: {
+                                    type: "object",
+                                    description: "Le profil de l'utilisateur.",
+                                }
                             },
                         },
                     },

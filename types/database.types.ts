@@ -34,6 +34,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      amitie: {
+        Row: {
+          idProfilDemandeur: number
+          idProfileReceveur: number
+          status: Database["public"]["Enums"]["statusAmitie"] | null
+        }
+        Insert: {
+          idProfilDemandeur: number
+          idProfileReceveur: number
+          status?: Database["public"]["Enums"]["statusAmitie"] | null
+        }
+        Update: {
+          idProfilDemandeur?: number
+          idProfileReceveur?: number
+          status?: Database["public"]["Enums"]["statusAmitie"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friendList_idProfileA_fkey"
+            columns: ["idProfilDemandeur"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendList_idProfileB_fkey"
+            columns: ["idProfileReceveur"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avatar: {
         Row: {
           idAvatar: number
@@ -48,6 +81,45 @@ export type Database = {
           urlavatar?: string
         }
         Relationships: []
+      }
+      demandeAmi: {
+        Row: {
+          date: string | null
+          demandeParIdProfile: number
+          id: number
+          status: Database["public"]["Enums"]["statusDemandeAmitie"]
+          versIdProfil: number
+        }
+        Insert: {
+          date?: string | null
+          demandeParIdProfile: number
+          id?: number
+          status?: Database["public"]["Enums"]["statusDemandeAmitie"]
+          versIdProfil: number
+        }
+        Update: {
+          date?: string | null
+          demandeParIdProfile?: number
+          id?: number
+          status?: Database["public"]["Enums"]["statusDemandeAmitie"]
+          versIdProfil?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandeAmi_demandeParIdProfile_fkey"
+            columns: ["demandeParIdProfile"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandeAmi_versIdProfil_fkey"
+            columns: ["versIdProfil"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       historiquePartie: {
         Row: {
@@ -287,6 +359,7 @@ export type Database = {
       }
       salon: {
         Row: {
+          commence: boolean
           created_at: string
           difficulte: number
           id: number
@@ -296,6 +369,7 @@ export type Database = {
           type: Database["public"]["Enums"]["typeRoom"]
         }
         Insert: {
+          commence?: boolean
           created_at?: string
           difficulte: number
           id?: number
@@ -305,6 +379,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["typeRoom"]
         }
         Update: {
+          commence?: boolean
           created_at?: string
           difficulte?: number
           id?: number
@@ -338,7 +413,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      typeRoom: "normal" | "rapide"
+      statusAmitie: "amis" | "en_attente" | "bloquer"
+      statusDemandeAmitie: "accepter" | "refuser" | "en_attente"
+      typeRoom: "normal" | "rapide" | "solo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -457,7 +534,9 @@ export const Constants = {
   },
   public: {
     Enums: {
-      typeRoom: ["normal", "rapide"],
+      statusAmitie: ["amis", "en_attente", "bloquer"],
+      statusDemandeAmitie: ["accepter", "refuser", "en_attente"],
+      typeRoom: ["normal", "rapide", "solo"],
     },
   },
 } as const
