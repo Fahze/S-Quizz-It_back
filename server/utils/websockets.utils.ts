@@ -81,3 +81,7 @@ export function getSalonState(salonId: number): SalonState | undefined {
 export function saveSalonState(salonId: number, salonState: SalonState) {
   salonsEnCours.set(salonId, salonState);
 }
+
+export function clearSalonState(salonId: number) {
+  salonsEnCours.delete(salonId);
+}

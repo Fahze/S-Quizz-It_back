@@ -1,4 +1,4 @@
-import { getSalonState, saveSalonState } from '~/utils/websockets.utils';
+import { clearSalonState, getSalonState, saveSalonState } from '~/utils/websockets.utils';
 import questionService from './question.service';
 import { AnswerResult } from '~~/types/common.types';
 
@@ -148,6 +148,7 @@ class GameService {
   }
 
   async endGame(peer, salonId) {
+    const supabase = await useSupabase();
     const salonMemoire = getSalonState(salonId);
     if (!salonMemoire) {
       return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
@@ -165,6 +166,21 @@ class GameService {
 
     peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game_end', salonId, classement }));
     peer.send({ user: `salon-${salonId}`, type: 'game_end', salonId, classement });
+
+    setTimeout(async () => {
+      // Clear the salon state after the game ends
+      clearSalonState(salonId);
+      // Clear the salon from database
+      await supabase
+        .from('salon')
+        .delete()
+        .eq('id', salonId)
+        .then(({ error }) => {
+          if (error) {
+            console.error(`Erreur lors de la suppression du salon ${salonId}: ${error.message}`);
+          }
+        });
+    }, 60000);
   }
 }
 
