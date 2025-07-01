@@ -26,7 +26,7 @@ export function extractToken(protocolHeader: string | null): string | null {
 }
 
 // Envoyer une erreur standard
-export function sendError(peer: any, message: string) {
+export function sendErrorToClient(peer: any, message: string) {
   peer.send({ user: 'server', type: 'error', message });
 }
 
