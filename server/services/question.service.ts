@@ -59,6 +59,25 @@ class QuestionService {
   async checkAnswer(body): Promise<AnswerResult> {
     const { idQuestion, idReponse, idJoueur, tempsReponse, type, reponseJoueur } = body;
 
+    // Vérifie si le joueur a laissé la réponse vide → automatiquement incorrect
+    if (
+      (type === 'qcm' && (!idReponse || isNaN(idReponse))) ||
+      (type === 'input' && (!reponseJoueur || reponseJoueur.trim() === ''))
+    ) {
+      console.warn('Aucune réponse fournie par le joueur');
+
+      return {
+        idJoueur,
+        correcte: false,
+        fautesOrthographe: false,
+        distanceLevenshtein: null,
+        malus: 0,
+        tempsReponse,
+        pointsGagnes: 0,
+        bonneReponse: null
+      };
+    }
+
     this.validateCheckAnswerInput(idQuestion, idJoueur, tempsReponse, type, body);
 
     const supabase = await useSupabase();
