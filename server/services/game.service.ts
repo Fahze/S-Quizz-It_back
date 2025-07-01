@@ -103,14 +103,18 @@ class GameService {
       reponseJoueur: answerText,
     });
 
-    if (answerResult.correcte) {
-      peer.send({ user: `salon-${salonId}`, type: 'success', message: `Bonne réponse ! Vous avez gagné ${answerResult.pointsGagnes} points.` });
-    } else {
-      peer.send({ user: `salon-${salonId}`, type: 'error', message: `Mauvaise réponse ! Vous avez perdu ${answerResult.malus} points.` });
-    }
     joueur.score += answerResult.pointsGagnes;
     salonMemoire.joueurs.set(peer.id, joueur);
     saveSalonState(salonId, salonMemoire);
+
+    peer.send({
+      user: `salon-${salonId}`,
+      type: 'answer_result',
+      salonId,
+      questionId,
+      correct: answerResult.correcte,
+      pointsGagnes: answerResult.pointsGagnes,
+    });
   }
 
   //TODO: Implement game logic methods like answerQuestion, endGame, etc.
