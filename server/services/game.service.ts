@@ -1,5 +1,6 @@
 import { getSalonState, saveSalonState } from '~/utils/websockets.utils';
 import questionService from './question.service';
+import { AnswerResult } from '~~/types/common.types';
 
 class GameService {
   async handleReady(peer, salonId) {
@@ -73,10 +74,43 @@ class GameService {
     }, 1000);
   }
 
-  async answerQuestion(peer, salonId, questionId, answer) {
+  async answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText) {
     const salonMemoire = getSalonState(salonId);
 
-    //TODO: Implement logic to check the answer against the question
+    console.log(salonId, questionId, tempsReponse, answerId, answerText);
+    if (!salonMemoire) {
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    }
+    if (!salonMemoire.partieCommencee) {
+      return peer.send({ user: 'server', type: 'error', message: "La partie n'a pas commencé" });
+    }
+    if (!salonMemoire.joueurs.has(peer.id)) {
+      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
+    }
+    const joueur = salonMemoire.joueurs.get(peer.id);
+
+    const question = questionService.getQuestionById(salonMemoire.questions, questionId);
+    if (!question) {
+      return peer.send({ user: 'server', type: 'error', message: 'Question introuvable' });
+    }
+
+    const answerResult: AnswerResult = await questionService.checkAnswer({
+      idQuestion: questionId,
+      idReponse: answerId,
+      idJoueur: peer.profile.id,
+      tempsReponse: tempsReponse,
+      type: question.type,
+      reponseJoueur: answerText,
+    });
+
+    if (answerResult.correcte) {
+      peer.send({ user: `salon-${salonId}`, type: 'success', message: `Bonne réponse ! Vous avez gagné ${answerResult.pointsGagnes} points.` });
+    } else {
+      peer.send({ user: `salon-${salonId}`, type: 'error', message: `Mauvaise réponse ! Vous avez perdu ${answerResult.malus} points.` });
+    }
+    joueur.score += answerResult.pointsGagnes;
+    salonMemoire.joueurs.set(peer.id, joueur);
+    saveSalonState(salonId, salonMemoire);
   }
 
   //TODO: Implement game logic methods like answerQuestion, endGame, etc.

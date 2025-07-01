@@ -40,7 +40,7 @@ export function extractId(text: string, prefix: string): number | null {
 // Authentifier un peer via Supabase JWT
 type Supabase = ReturnType<typeof createClient>;
 export async function authenticatePeer(peer: any, supabase: any, token: string): Promise<string | null> {
-  const { user, profile } = await getUserWithToken(token);
+  const { user, profile } = await getUserWithToken(`Bearer ${token}`);
   peer.user = user;
   peer.profile = profile;
   return user.id;

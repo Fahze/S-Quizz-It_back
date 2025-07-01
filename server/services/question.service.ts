@@ -1,4 +1,4 @@
-import { AnswerResult, Question } from '../websockets/websocket.state';
+import { Question, AnswerResult } from "~~/types/common.types";
 
 class QuestionService {
   async getQuestions(niveauDifficulte): Promise<Question[]> {
@@ -39,6 +39,21 @@ class QuestionService {
       }));
 
     return randomQuestions;
+  }
+
+  getQuestionById(questions: Question[], id: number): Question | null {
+    if (!Array.isArray(questions) || questions.length === 0) {
+      console.error('La liste des questions est vide ou invalide');
+      return null;
+    }
+
+    const question = questions.find((q) => q.id === id);
+    if (!question) {
+      console.error(`Aucune question trouvée avec l'ID: ${id}`);
+      return null;
+    }
+
+    return question;
   }
 
   async checkAnswer(body): Promise<AnswerResult> {
