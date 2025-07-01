@@ -35,22 +35,13 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const { data: profile, error: profileFetchError } = await supabase.from('profile').select('*').eq('idUser', data.user.id).single();
-
-    if (profileFetchError) {
-      // On log l'erreur pour le debug
-      console.error('Erreur lors de la récupération du profil utilisateur:', profileFetchError);
-      // On renvoie une erreur 500 si la récupération du profil échoue
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Erreur lors de la récupération du profil utilisateur.',
-      });
-    }
+    const profile = await getProfile(data.user.id);
 
     // On renvoie les données de la session rafraîchie
     return {
       user: data.user,
       session: data.session,
+      profile
     };
   } catch (error: any) {
     // On log l'erreur pour le debug
