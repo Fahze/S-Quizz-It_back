@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import salonService from '~/websockets/salon.service';
-import { salonsEnCours } from '~/websockets/websocket.state';
-import { SalonState } from '~~/types/websocket.types';
+import salonService from '~/services/salon.service';
+import { salonsEnCours, SalonState } from '~/websockets/websocket.state';
 
 export async function connectToTopic(peer, topic: string) {
   if (!peer || !topic) {
@@ -41,28 +40,20 @@ export function extractId(text: string, prefix: string): number | null {
 // Authentifier un peer via Supabase JWT
 type Supabase = ReturnType<typeof createClient>;
 export async function authenticatePeer(peer: any, supabase: any, token: string): Promise<string | null> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  peer.userId = user.id;
+  const { user, profile } = await getUserWithToken(`Bearer ${token}`);
+  peer.user = user;
+  peer.profile = profile;
   return user.id;
 }
 
 // Nettoyer et quitter tous les salons d'un peer
-type SalonServiceType = {
-  playerLeaveSalon: (peer: any, salonId: number, salonsEnCours: Map<any, any>) => Promise<void>;
-};
-export function leaveAllSalons(peer: any, salonsEnCours: Map<any, any>, salonService: SalonServiceType) {
+export function leaveAllSalons(peer: any) {
   peer.topics.forEach((topic: string) => {
     if (topic.startsWith('salon-')) {
       const idStr = topic.split('-')[1];
       const id = parseInt(idStr, 10);
       if (!isNaN(id)) {
-        salonService.playerLeaveSalon(peer, id, salonsEnCours);
+        salonService.playerLeaveSalon(peer, id);
       }
     }
     peer.unsubscribe(topic);
@@ -75,9 +66,17 @@ export function getOrCreateSalon(salonId: number): SalonState {
     salon = {
       joueurs: new Map(),
       partieCommencee: false,
-      absents: []
+      questions: [],
     };
     salonsEnCours.set(salonId, salon);
   }
   return salon;
+}
+
+export function getSalonState(salonId: number): SalonState | undefined {
+  return salonsEnCours.get(salonId);
+}
+
+export function saveSalonState(salonId: number, salonState: SalonState) {
+  salonsEnCours.set(salonId, salonState);
 }

@@ -1,4 +1,4 @@
-import { getOrCreateSalon } from '~/utils/websockets.utils';
+import { getOrCreateSalon, saveSalonState } from '~/utils/websockets.utils';
 
 class SalonService {
   // Utilitaire pour générer un label aléatoire
@@ -33,7 +33,45 @@ class SalonService {
     if (insertError) {
       peer.send({ type: 'error', message: insertError.message });
     } else {
-      await this.broadcastSalons(peer, 'chat');
+      await this.broadcastSalons(peer, 'salons');
+    }
+  }
+
+  async createRapideSalon(peer) {
+    const supabase = await useSupabase();
+    if (!peer) {
+      throw new Error('Peer is required to create a rapid salon');
+    }
+    // Vérifier si le salon rapide existe déjà
+    const { data: existingSalons, error } = await supabase.from('salon').select('*').eq('type', 'rapide').eq('commence', false).limit(1);
+    if (error) {
+      peer.send({ type: 'error', message: error.message });
+      return;
+    }
+    if (existingSalons.length > 0) {
+      // Si un salon rapide existe déjà, rejoindre ce salon
+      const salonId = existingSalons[0].id;
+      await this.playerJoinSalon(peer, salonId);
+    } else {
+      // Sinon, créer un nouveau salon rapide
+      const newSalon = {
+        label: this.genLabel('Rapide'),
+        difficulte: 2,
+        type: 'rapide' as const,
+        j_max: 4,
+      };
+      const { error: insertError } = await supabase.from('salon').insert(newSalon);
+      if (insertError) {
+        peer.send({ type: 'error', message: insertError.message });
+      } else {
+        peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
+        // Récupérer l'ID du salon créé
+        const { data: salons } = await supabase.from('salon').select('*').order('id', { ascending: false }).limit(1);
+        if (salons.length > 0) {
+          const salonId = salons[0].id;
+          await this.playerJoinSalon(peer, salonId);
+        }
+      }
     }
   }
 
@@ -53,7 +91,7 @@ class SalonService {
     }
   }
 
-  async playerJoinSalon(peer, salonId: number, salonsEnCours: Map<any, any>) {
+  async playerJoinSalon(peer, salonId: number) {
     const supabase = await useSupabase();
     if (isNaN(salonId)) {
       return peer.send({ type: 'error', message: 'ID invalide pour rejoindre le salon' });
@@ -85,26 +123,25 @@ class SalonService {
     }
 
     // Prépare l'état en mémoire
-    const salonMemoire = getOrCreateSalon(salonId);
+    leaveAllSalons(peer);
 
-    // Ajout du joueur
+    const salonMemoire = getOrCreateSalon(salonId);
     salonMemoire.joueurs.set(peer.id, {
       userId: peer.userId,
       score: 0,
       connected: true,
+      isReady: false,
     });
+    saveSalonState(salonId, salonMemoire);
 
     peer.subscribe(`salon-${salonId}`);
     peer.currentSalon = salonId;
 
-    peer.unsubscribe('salons');
-
-    peer.publish(`salon-${salonId}`, { type: 'join', salonId, user: peer.id });
-    peer.publish(`salon-${salonId}`, { user: `salon-${salonId}`, message: `${peer.id} a rejoint le salon` });
+    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'join', salonId, message: `${peer.id} a rejoint le salon` }));
     peer.send({ user: 'server', type: 'success', message: `Vous avez rejoint le salon ${salon.label}` });
   }
 
-  async playerLeaveSalon(peer, salonId: number, salonsEnCours: Map<any, any>) {
+  async playerLeaveSalon(peer, salonId: number) {
     const supabase = await useSupabase();
     if (isNaN(salonId)) {
       return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour quitter le salon' });
@@ -127,18 +164,15 @@ class SalonService {
     }
 
     const salonMemoire = getOrCreateSalon(salonId);
+    salonMemoire.joueurs.delete(peer.id);
+    saveSalonState(salonId, salonMemoire);
 
-    // Ajout du joueur
-
-    // Envoyer un message de succès
     peer.unsubscribe(`salon-${salonId}`);
     peer.currentSalon = null;
-    salonMemoire.joueurs.delete(peer.id);
 
     peer.subscribe('salons');
 
-    peer.publish(`salon-${salonId}`, JSON.stringify({ type: 'leave', salonId, user: peer.id }));
-    peer.publish(`salon-${salonId}`, { user: `salon-${salonId}`, message: `${peer.id} a quitté le salon` });
+    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'leave', salonId, message: `${peer.id} a quitté le salon` }));
     peer.send({ user: 'server', type: 'success', message: `Vous avez quitté le salon ${salon.label}` });
   }
 }

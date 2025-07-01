@@ -1,6 +1,7 @@
 import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
-import salonService from '../websockets/salon.service';
+import salonService from '../services/salon.service';
 import { salonsEnCours } from '~/websockets/websocket.state';
+import gameService from '~/services/game.service';
 
 export default defineWebSocketHandler({
   async open(peer) {
@@ -26,10 +27,22 @@ export default defineWebSocketHandler({
   },
 
   async message(peer: any, message): Promise<any> {
-    const text = message.text();
+    const text = message.text().trim();
     if (text === 'fetch') {
-      console.log(`[ws] ${peer.id} demande la liste des salons`);
       await salonService.broadcastSalons(peer, 'salons');
+      console.log(
+        salonsEnCours,
+        salonsEnCours.forEach((salon, key) => {
+          salon.joueurs.forEach((joueur) => {
+            console.log(joueur);
+          });
+        })
+      );
+      peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
+    }
+
+    if (text === 'rapide') {
+      await salonService.createRapideSalon(peer);
     }
 
     const joinId = extractId(text, 'connect');
@@ -41,7 +54,7 @@ export default defineWebSocketHandler({
           message: 'Vous êtes déjà dans ce salon',
         });
       } else {
-        await salonService.playerJoinSalon(peer, joinId, salonsEnCours);
+        await salonService.playerJoinSalon(peer, joinId);
       }
       return;
     }
@@ -49,7 +62,7 @@ export default defineWebSocketHandler({
     const leaveId = extractId(text, 'leave');
     if (leaveId) {
       if (peer.currentSalon === leaveId) {
-        await salonService.playerLeaveSalon(peer, leaveId, salonsEnCours);
+        await salonService.playerLeaveSalon(peer, leaveId);
       } else {
         peer.send({
           user: 'server',
@@ -59,14 +72,41 @@ export default defineWebSocketHandler({
       }
       return;
     }
-    console.log('OK', salonsEnCours);
+
+    const readyId = extractId(text, 'ready');
+    if (readyId) {
+      if (peer.currentSalon === readyId) {
+        await gameService.handleReady(peer, readyId);
+      }
+    }
+
+    const startId = extractId(text, 'start');
+    if (startId) {
+      if (peer.currentSalon === startId) {
+        await gameService.startGame(peer, startId);
+      }
+    }
+
+    if (text.startsWith('answer:')) {
+      const answerData = JSON.parse(text.replace('answer:', ''));
+      const { salonId, questionId, tempsReponse, answerId, answerText } = answerData;
+      // if (peer.currentSalon === salonId) {
+      await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
+      // } else {
+      //   peer.send({
+      //     user: 'server',
+      //     type: 'error',
+      //     message: 'Vous devez être dans le salon pour répondre à une question',
+      //   });
+      // }
+    }
 
     peer.send({ user: peer.id, message: text });
   },
 
   close(peer) {
     console.log(`[ws] ${peer.id} déconnecté`);
-    leaveAllSalons(peer, salonsEnCours, salonService);
+    leaveAllSalons(peer);
   },
 
   error(peer, err) {
