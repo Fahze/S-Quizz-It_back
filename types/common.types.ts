@@ -16,3 +16,9 @@ export interface AnswerResult {
   pointsGagnes: number;
   bonneReponse: string | null;
 }
+
+export interface JoueurClassement {
+  idJoueur: number;
+  pseudo: string;
+  totalPoints: number;
+}
