@@ -67,6 +67,7 @@ export function getOrCreateSalon(salonId: number): SalonState {
       joueurs: new Map(),
       partieCommencee: false,
       questions: [],
+      currentQuestionIndex: 0,
     };
     salonsEnCours.set(salonId, salon);
   }

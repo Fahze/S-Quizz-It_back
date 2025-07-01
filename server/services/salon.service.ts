@@ -128,9 +128,11 @@ class SalonService {
     const salonMemoire = getOrCreateSalon(salonId);
     salonMemoire.joueurs.set(peer.id, {
       userId: peer.userId,
+      profile: { id: peer.id, pseudo: peer.profile.pseudo, avatar: peer.profile.avatar, elo: peer.profile.elo },
       score: 0,
       connected: true,
       isReady: false,
+      finished: false,
     });
     saveSalonState(salonId, salonMemoire);
 

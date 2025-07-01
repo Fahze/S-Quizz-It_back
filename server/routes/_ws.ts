@@ -90,15 +90,15 @@ export default defineWebSocketHandler({
     if (text.startsWith('answer:')) {
       const answerData = JSON.parse(text.replace('answer:', ''));
       const { salonId, questionId, tempsReponse, answerId, answerText } = answerData;
-      // if (peer.currentSalon === salonId) {
+      if (peer.currentSalon === salonId) {
       await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
-      // } else {
-      //   peer.send({
-      //     user: 'server',
-      //     type: 'error',
-      //     message: 'Vous devez être dans le salon pour répondre à une question',
-      //   });
-      // }
+      } else {
+        peer.send({
+          user: 'server',
+          type: 'error',
+          message: 'Vous devez être dans le salon pour répondre à une question',
+        });
+      }
     }
 
     peer.send({ user: peer.id, message: text });

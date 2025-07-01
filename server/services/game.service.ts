@@ -30,6 +30,9 @@ class GameService {
     if (isNaN(salonId) || !salonMemoire) {
       return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour démarrer le jeu' });
     }
+    if (!Array.from(salonMemoire.joueurs.values()).every((j) => j.isReady)) {
+      return peer.send({ user: 'server', type: 'error', message: 'Tous les joueurs doivent être prêts pour démarrer le jeu' });
+    }
     // Vérifier si le salon existe
     const { data: salon, error: fetchError } = await supabase.from('salon').select('*').eq('id', salonId).single();
     if (fetchError || !salon) {
@@ -42,7 +45,6 @@ class GameService {
         if (questions.length === 0) {
           return peer.send({ user: 'server', type: 'error', message: 'Aucune question disponible pour ce niveau de difficulté' });
         }
-
         salonMemoire.questions = questions;
       })
       .catch((error) => {
@@ -109,11 +111,73 @@ class GameService {
       peer.send({ user: `salon-${salonId}`, type: 'error', message: `Mauvaise réponse ! Vous avez perdu ${answerResult.malus} points.` });
     }
     joueur.score += answerResult.pointsGagnes;
+    joueur.questionIndex = (joueur.questionIndex || 0) + 1; // Incrémente l'index de question
+
+    salonMemoire.joueurs.set(peer.id, joueur);
+
+    if (Array.from(salonMemoire.joueurs.values()).every((j) => j.questionIndex === salonMemoire.currentQuestionIndex)) {
+      if (salonMemoire.currentQuestionIndex >= salonMemoire.questions.length - 1) {
+        // Si toutes les questions ont été posées, on initie la fin du jeu
+        salonMemoire.joueurs.forEach((joueur) => {
+          joueur.finished = true; // Marque le joueur comme ayant terminé
+          salonMemoire.joueurs.set(joueur.userId, joueur);
+        });
+        saveSalonState(salonId, salonMemoire);
+
+        this.endGame(peer, salonId);
+        return;
+      }
+      salonMemoire.currentQuestionIndex++;
+
+      peer.publish(
+        `salon-${salonId}`,
+        JSON.stringify({ user: `salon-${salonId}`, type: 'next_question', salonId, questionIndex: salonMemoire.currentQuestionIndex })
+      );
+      peer.send({
+        user: `salon-${salonId}`,
+        type: 'next_question',
+        salonId,
+        questionIndex: salonMemoire.currentQuestionIndex,
+      });
+    }
+
+    saveSalonState(salonId, salonMemoire);
+  }
+
+  async handlePlayerFinished(peer, salonId) {
+    const salonMemoire = getSalonState(salonId);
+    if (!salonMemoire) {
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    }
+    if (!salonMemoire.joueurs.has(peer.id)) {
+      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
+    }
+
+    const joueur = salonMemoire.joueurs.get(peer.id);
+    joueur.finished = true; // Marque le joueur comme ayant terminé
     salonMemoire.joueurs.set(peer.id, joueur);
     saveSalonState(salonId, salonMemoire);
   }
 
-  //TODO: Implement game logic methods like answerQuestion, endGame, etc.
+  async endGame(peer, salonId) {
+    const salonMemoire = getSalonState(salonId);
+    if (!salonMemoire) {
+      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    }
+
+    const joueurs = Array.from(salonMemoire.joueurs.values()).map((joueur) => {
+      return {
+        idJoueur: Number(joueur.profile.id),
+        pseudo: peer.profile.pseudo, // Assuming peer.profile contains the player's profile
+        totalPoints: joueur.score,
+      };
+    });
+
+    const classement = questionService.getClassement(joueurs);
+
+    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game_end', salonId, classement }));
+    peer.send({ user: `salon-${salonId}`, type: 'game_end', salonId, classement });
+  }
 }
 
 export default new GameService();
