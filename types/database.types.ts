@@ -123,44 +123,32 @@ export type Database = {
       }
       historiquePartie: {
         Row: {
-          idPartie: number
+          datePartie: string
+          id: number
           idProfile: number
           score: number
         }
         Insert: {
-          idPartie: number
+          datePartie?: string
+          id?: number
           idProfile: number
           score: number
         }
         Update: {
-          idPartie?: number
+          datePartie?: string
+          id?: number
           idProfile?: number
           score?: number
         }
         Relationships: [
           {
-            foreignKeyName: "historiquePartie_idPartie_fkey"
-            columns: ["idPartie"]
+            foreignKeyName: "historiquePartie_idProfile_fkey"
+            columns: ["idProfile"]
             isOneToOne: false
-            referencedRelation: "partie"
+            referencedRelation: "profile"
             referencedColumns: ["id"]
           },
         ]
-      }
-      partie: {
-        Row: {
-          date: string
-          id: number
-        }
-        Insert: {
-          date?: string
-          id?: number
-        }
-        Update: {
-          date?: string
-          id?: number
-        }
-        Relationships: []
       }
       profile: {
         Row: {
