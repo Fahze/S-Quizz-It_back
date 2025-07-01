@@ -338,7 +338,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      typeRoom: "normal" | "rapide" | "solo"
+      typeRoom: "normal" | "rapide"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -457,7 +457,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      typeRoom: ["normal", "rapide", "solo"],
+      typeRoom: ["normal", "rapide"],
     },
   },
 } as const
