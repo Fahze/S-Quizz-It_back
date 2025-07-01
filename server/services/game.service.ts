@@ -137,22 +137,6 @@ class GameService {
     }
 
     saveSalonState(salonId, salonMemoire);
-  }
-
-  async handlePlayerFinished(peer, salonId) {
-    const salonMemoire = getSalonState(salonId);
-    if (!salonMemoire) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
-    if (!salonMemoire.joueurs.has(peer.id)) {
-      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
-    }
-
-    const joueur = salonMemoire.joueurs.get(peer.id);
-    joueur.finished = true; // Marque le joueur comme ayant terminé
-    salonMemoire.joueurs.set(peer.id, joueur);
-    saveSalonState(salonId, salonMemoire);
-
     peer.send({
       user: `salon-${salonId}`,
       type: 'answer_result',
