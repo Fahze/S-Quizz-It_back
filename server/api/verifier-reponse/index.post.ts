@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event);
 
-  questionService.checkAnswer(body);
+  return questionService.checkAnswer(body);
 });
 
 // defineRouteMeta({

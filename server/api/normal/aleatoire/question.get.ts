@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event);
   const niveauDifficulte = query.niveauDifficulte ? parseInt(query.niveauDifficulte as string) : null;
 
-  questionService.getQuestions(niveauDifficulte);
+  return questionService.getQuestions(niveauDifficulte);
 });
 
 defineRouteMeta({
