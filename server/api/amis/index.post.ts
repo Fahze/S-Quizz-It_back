@@ -79,9 +79,9 @@ defineRouteMeta({
                 schema: {
                 type: 'object',
                 properties: {
-                    idProfileReceveur: { type: 'string', description: 'ID du profil à qui envoyer la demande' }
+                    pseudoProfileReceveur: { type: 'string', description: 'Pseudo du profil à qui envoyer la demande' }
                 },
-                required: ['idProfileReceveur']
+                required: ['pseudoProfileReceveur']
                 }
             }
             }
