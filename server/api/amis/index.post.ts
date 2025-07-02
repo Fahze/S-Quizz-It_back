@@ -9,14 +9,28 @@ export default defineEventHandler(async (event) => {
     const supabase = await useSupabase();
     const body = await readBody(event);
 
-    const { idProfileReceveur } = body;
+    const pseudoProfileReceveur : string = body.pseudoProfileReceveur;
 
-    if (!idProfileReceveur) {
-      throw createError({ statusCode: 400, statusMessage: 'idProfileReceveur requis.' });
+    if (!pseudoProfileReceveur) {
+      throw createError({ statusCode: 400, statusMessage: 'pseudoProfileReceveur requis.' });
     }
-    if (idProfileReceveur === profile.id) {
+    if (pseudoProfileReceveur === profile.pseudo) {
       throw createError({ statusCode: 400, statusMessage: 'Impossible de s\'ajouter soi-même.' });
     }
+
+    // Récupère l'ID du profil receveur à partir de son pseudo
+    const { data: receveurProfile, error: receveurError } = await supabase
+      .from('profile')
+      .select('*')
+      .eq('pseudo', pseudoProfileReceveur)
+      .single();
+      
+
+    if (receveurError || !receveurProfile) {
+      throw createError({ statusCode: 404, statusMessage: 'Profil receveur non trouvé.' });
+    }
+
+    const idProfileReceveur = receveurProfile.id;
 
     // Vérifie si une demande existe déjà
     const { data: existing, error: existingError } = await supabase
