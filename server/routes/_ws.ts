@@ -30,7 +30,6 @@ export default defineWebSocketHandler({
     const text = message.text().trim();
     if (text === 'fetch') {
       await salonService.broadcastSalons(peer, 'salons');
-      
       peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
     }
 
