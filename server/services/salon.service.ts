@@ -238,6 +238,20 @@ class SalonService {
     }, 2000);
 
     this.publishSalonUpdate(peer, salonId, 'leave', `Vous avez quitté le salon ${salon.label}`);
+
+    // Vérifier si le salon est vide et le supprimer si nécessaire
+    if (salonMemoire && salonMemoire.joueurs.size === 0) {
+      const supabase = await useSupabase();
+      const { error } = await supabase.from('salon').delete().eq('id', salonId);
+      if (error) {
+        peer.send({ user: 'server', type: 'error', message: 'Erreur lors de la suppression du salon' });
+      } else {
+        this.publishSalonUpdate(peer, salonId, 'delete', `Le salon ${salon.label} a été supprimé car il est vide`);
+      }
+      clearSalonState(salonId);
+    } else {
+      this.publishSalonUpdate(peer, salonId, 'update', `Le salon ${salon.label} a été mis à jour`);
+    }
   }
 }
 
