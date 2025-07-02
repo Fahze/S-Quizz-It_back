@@ -16,29 +16,80 @@ export default defineEventHandler(async (event) => {
 
   const supabase = await useSupabase();
 
-  const { data: historique, error } = await supabase
+  // Récupère l'historique du joueur
+  const { data: historique, error: errorHistorique } = await supabase
     .from('historiquePartie')
     .select('*')
     .eq('idProfile', idProfile)
     .order('datePartie', { ascending: false });
 
-  if (error) {
-    console.error('Erreur récupération historique:', error.message);
+  if (errorHistorique) {
+    console.error('Erreur récupération historique:', errorHistorique.message);
     throw createError({
       statusCode: 500,
       statusMessage: 'Erreur lors de la récupération des données'
     });
   }
 
-  return historique;
+  // Récupération des relations d’amitié avec statut "amie"
+  const { data: amisA, error: errorA } = await supabase
+    .from('amitie')
+    .select('idProfileReceveur')
+    .eq('idProfilDemandeur', idProfile)
+    .eq('status', 'amis');
+
+  const { data: amisB, error: errorB } = await supabase
+    .from('amitie')
+    .select('idProfilDemandeur')
+    .eq('idProfileReceveur', idProfile)
+    .eq('status', 'amis');
+
+  if (errorA || errorB) {
+    console.error('Erreur récupération amitiés:', errorA || errorB);
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Erreur récupération des relations amicales'
+    });
+  }
+
+  const amisIds = [
+    ...amisA.map(a => a.idProfileReceveur),
+    ...amisB.map(b => b.idProfilDemandeur)
+  ];
+
+  let historiqueAmie = [];
+
+  if (amisIds.length > 0) {
+    const { data: historiqueAmisData, error: errorAmisHist } = await supabase
+      .from('historiquePartie')
+      .select('*')
+      .in('idProfile', amisIds)
+      .order('datePartie', { ascending: false });
+
+    if (errorAmisHist) {
+      console.error('Erreur récupération historique amis:', errorAmisHist.message);
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Erreur récupération historique des amis'
+      });
+    }
+
+    historiqueAmie = historiqueAmisData;
+  }
+
+  return {
+    historique,
+    historiqueAmie
+  };
 });
+
 
 // defineRouteMeta({
 defineRouteMeta({
   openAPI: {
     tags: ["historique"],
-    summary: "Récupère l’historique des parties d’un profil",
-    description: "Retourne les scores et dates de toutes les parties jouées par un utilisateur donné.",
+    summary: "Récupère l’historique des parties d’un profil et de ses amis",
+    description: "Retourne l'historique des parties jouées par un utilisateur donné, ainsi que celles de ses amis dont l'amitié est validée (statut = 'amie').",
     parameters: [
       {
         name: "idProfile",
@@ -50,26 +101,43 @@ defineRouteMeta({
     ],
     responses: {
       200: {
-        description: "Liste des parties jouées",
+        description: "Historique personnel et historique des amis",
         content: {
           "application/json": {
             schema: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "integer" },
-                  score: { type: "integer" },
-                  idProfile: { type: "integer" },
-                  datePartie: { type: "string", format: "date" }
+              type: "object",
+              properties: {
+                historique: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "integer" },
+                      score: { type: "integer" },
+                      idProfile: { type: "integer" },
+                      datePartie: { type: "string", format: "date" }
+                    }
+                  }
+                },
+                historiqueAmie: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "integer" },
+                      score: { type: "integer" },
+                      idProfile: { type: "integer" },
+                      datePartie: { type: "string", format: "date" }
+                    }
+                  }
                 }
               }
             }
           }
         }
       },
-      400: { description: "Requête invalide" },
-      500: { description: "Erreur interne" }
+      400: { description: "Requête invalide (idProfile manquant ou invalide)" },
+      500: { description: "Erreur interne (problème de base de données)" }
     }
   }
 });
