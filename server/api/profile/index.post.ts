@@ -29,8 +29,7 @@ export default defineEventHandler(async (event) => {
         const { error } = await supabase
             .from('profile')
             .update({ pseudo: newUsername,
-                avatar: selectedAvatar ?? user.profile.avatar.idAvatar  // Si un nouvel avatar est sélectionné, l'utiliser, sinon garder l'ancien
-             })
+                idAvatar: selectedAvatar ?? user.profile.idAvatar })
             .eq('id', user.profile.id);
 
         if (error) {
