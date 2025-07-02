@@ -25,11 +25,7 @@ export default async function getUserWithToken(access_token: string) {
   }
 
   // On récupère le profil utilisateur
-  const { data: profile, error: profileFetchError } = await supabase.from('profile').select('*').eq('idUser', userFetch.user.id).single();
-
-  if (profileFetchError) {
-    throw new Error(profileFetchError.message || 'Erreur lors de la récupération du profil utilisateur');
-  }
+  const profile = await getProfile(userFetch.user.id);
 
   return {
     user: userFetch.user,
