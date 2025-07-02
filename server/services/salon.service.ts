@@ -256,6 +256,18 @@ class SalonService {
     if (salonMemoire && salonMemoire.joueurs.size === 0) {
       const supabase = await useSupabase();
       const { error } = await supabase.from('salon').delete().eq('id', salonId);
+
+      // Timer pour éviter les problèmes de synchronisation
+      await new Promise(resolve => setTimeout(resolve, 10000));
+
+      // On re récupère le salon pour vérifier s'il est toujours vide
+      const updatedSalon = await this.validateSalonExists(peer, salonId);
+      
+      if (!updatedSalon || updatedSalon.j_actuelle > 0) {
+        return; // Le salon n'est plus vide, on ne le supprime pas
+      }
+
+
       if (error) {
         peer.send({ user: 'server', type: 'error', message: 'Erreur lors de la suppression du salon' });
       } else {
