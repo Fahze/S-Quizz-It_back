@@ -82,45 +82,6 @@ export type Database = {
         }
         Relationships: []
       }
-      demandeAmi: {
-        Row: {
-          date: string | null
-          demandeParIdProfile: number
-          id: number
-          status: Database["public"]["Enums"]["statusDemandeAmitie"]
-          versIdProfil: number
-        }
-        Insert: {
-          date?: string | null
-          demandeParIdProfile: number
-          id?: number
-          status?: Database["public"]["Enums"]["statusDemandeAmitie"]
-          versIdProfil: number
-        }
-        Update: {
-          date?: string | null
-          demandeParIdProfile?: number
-          id?: number
-          status?: Database["public"]["Enums"]["statusDemandeAmitie"]
-          versIdProfil?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "demandeAmi_demandeParIdProfile_fkey"
-            columns: ["demandeParIdProfile"]
-            isOneToOne: false
-            referencedRelation: "profile"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "demandeAmi_versIdProfil_fkey"
-            columns: ["versIdProfil"]
-            isOneToOne: false
-            referencedRelation: "profile"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       historiquePartie: {
         Row: {
           datePartie: string
@@ -152,27 +113,35 @@ export type Database = {
       }
       profile: {
         Row: {
-          avatar: string | null
           elo: number
           id: number
+          idAvatar: number | null
           idUser: string
           pseudo: string
         }
         Insert: {
-          avatar?: string | null
           elo?: number
           id?: number
+          idAvatar?: number | null
           idUser: string
           pseudo: string
         }
         Update: {
-          avatar?: string | null
           elo?: number
           id?: number
+          idAvatar?: number | null
           idUser?: string
           pseudo?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profile_idAvatar_fkey"
+            columns: ["idAvatar"]
+            isOneToOne: false
+            referencedRelation: "avatar"
+            referencedColumns: ["idAvatar"]
+          },
+        ]
       }
       question: {
         Row: {
