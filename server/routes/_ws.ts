@@ -1,4 +1,4 @@
-import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendError } from '~/utils/websockets.utils';
+import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendErrorToClient } from '~/utils/websockets.utils';
 import salonService from '../services/salon.service';
 import { salonsEnCours } from '~/websockets/websocket.state';
 import gameService from '~/services/game.service';
@@ -9,7 +9,7 @@ export default defineWebSocketHandler({
     const protocolHeader = peer.request.headers.get('sec-websocket-protocol');
     const token = extractToken(protocolHeader);
     if (!token) {
-      sendError(peer, 'Veuillez compléter le protocole comme "auth,<token>"');
+      sendErrorToClient(peer, 'Veuillez compléter le protocole comme "auth,<token>"');
       return peer.close();
     }
 
@@ -17,7 +17,7 @@ export default defineWebSocketHandler({
     const supabase = await useSupabase();
     const userId = await authenticatePeer(peer, supabase, token);
     if (!userId) {
-      sendError(peer, 'Authentification invalide');
+      sendErrorToClient(peer, 'Authentification invalide');
       return peer.close();
     }
 
@@ -39,6 +39,12 @@ export default defineWebSocketHandler({
         })
       );
       peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
+    }
+
+    if (text.startsWith('create:')) {
+      const answerData = JSON.parse(text.replace('create:', ''));
+      const { difficulte, j_max, label } = answerData;
+      await salonService.createNormalSalon(peer, { label, difficulte, type: 'normal', j_max });
     }
 
     if (text === 'rapide') {
@@ -91,7 +97,7 @@ export default defineWebSocketHandler({
       const answerData = JSON.parse(text.replace('answer:', ''));
       const { salonId, questionId, tempsReponse, answerId, answerText } = answerData;
       if (peer.currentSalon === salonId) {
-      await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
+        await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
       } else {
         peer.send({
           user: 'server',
