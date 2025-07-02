@@ -5,7 +5,7 @@ export default async function getProfile(userId: string) {
     // On tente de récupérer le profil de l'utilisateur
     const { data, error } = await supabase
         .from("profile")
-        .select("*")
+        .select("*, avatar(*)")
         .eq("idUser", userId)
         .single();
 

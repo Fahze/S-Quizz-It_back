@@ -2,8 +2,8 @@ export default defineEventHandler(async (event) => {
     assertMethod(event, "POST");
   
     const body = await readBody(event);
-    const newUsername = body.username;
-    const selectedAvatar = body.idAvatar;
+    const newUsername : string = body.username;
+    const selectedAvatar : number = body.idAvatar;
 
 
     if (!newUsername) {
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
         const { error } = await supabase
             .from('profile')
             .update({ pseudo: newUsername,
-                avatar: selectedAvatar ?? user.profile.avatar  // Si un nouvel avatar est sélectionné, l'utiliser, sinon garder l'ancien
+                avatar: selectedAvatar ?? user.profile.avatar.idAvatar  // Si un nouvel avatar est sélectionné, l'utiliser, sinon garder l'ancien
              })
             .eq('id', user.profile.id);
 
@@ -73,7 +73,7 @@ defineRouteMeta({
                         type: 'object',
                         properties: {
                             username: { type: 'string', description: "Nouveau nom d'utilisateur" },
-                            idAvatar: { type: 'string', description: 'ID de l\'avatar sélectionné (optionnel)' }
+                            idAvatar: { type: 'number', description: 'ID de l\'avatar sélectionné (optionnel)' }
                         },
                         required: ['username']
                     }
