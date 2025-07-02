@@ -1,9 +1,10 @@
 import { Question, AnswerResult, JoueurClassement } from '~~/types/common.types';
 
-const supabase = await useSupabase();
-
 class QuestionService {
+
   async getQuestions(niveauDifficulte : number): Promise<Question[]> {
+    const supabase = await useSupabase();
+
     if (niveauDifficulte !== null && (niveauDifficulte <= 1 || niveauDifficulte >= 3)) {
       console.error(`Niveau de difficulté invalide: ${niveauDifficulte}`);
       throw createError({
@@ -196,6 +197,10 @@ class QuestionService {
   }
 
   private async getNiveauDifficulte(idQuestion: number): Promise<number> {
+
+    const supabase = await useSupabase();
+
+
     const { data: questionData, error: errorQuestion } = await supabase.from('question').select('niveauDifficulte').eq('id', idQuestion).single();
     if (errorQuestion || !questionData) {
       console.error('Erreur récupération niveau difficulté', errorQuestion);
@@ -205,6 +210,10 @@ class QuestionService {
   }
 
   private async handleQcmType(idQuestion: number, idReponse: number, body: any) {
+
+    const supabase = await useSupabase();
+
+
     if (!idReponse) {
       console.error('idReponse requis pour QCM', body);
       throw createError({ statusCode: 400, statusMessage: 'idReponse requis pour QCM' });
@@ -237,6 +246,9 @@ class QuestionService {
       throw createError({ statusCode: 400, statusMessage: 'reponseJoueur est requis pour input' });
     }
 
+    const supabase = await useSupabase();
+
+
     const { data: repIdData, error: errId } = await supabase
       .from('questionReponse')
       .select('idReponse')
@@ -264,7 +276,6 @@ class QuestionService {
     let tolerance = 0;
     if (niveauDifficulte === 1) tolerance = 3;
     else if (niveauDifficulte === 2) tolerance = 2;
-    else if (niveauDifficulte === 3) tolerance = 0;
 
     const correcte = distance <= tolerance;
     let fautesOrthographe = false;
