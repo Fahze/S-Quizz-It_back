@@ -1,5 +1,6 @@
 import { getAllJoueursFromSalon, getOrCreateSalon, getSalonState, saveSalonState, leaveAllSalons } from '~/utils/websockets.utils';
 import { CreateSalonParams, SalonData } from '~~/types/common.types';
+import gameService from './game.service';
 
 class SalonService {
   // Utility methods
@@ -146,6 +147,8 @@ class SalonService {
     if (existingSalons?.length > 0) {
       // Join existing rapid salon
       await this.playerJoinSalon(peer, existingSalons[0].id, true);
+      // Check if salon is now full and start game if it is
+      await this.checkAndStartRapidGame(peer, existingSalons[0].id);
       return;
     }
 
@@ -169,6 +172,21 @@ class SalonService {
 
     if (salons?.length > 0) {
       await this.playerJoinSalon(peer, salons[0].id, true);
+      // Check if salon is now full and start game if it is
+      await this.checkAndStartRapidGame(peer, salons[0].id);
+    }
+  }
+
+  private async checkAndStartRapidGame(peer: any, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(peer, salonId);
+    if (!salon || salon.type !== 'rapide') return;
+
+    // Check if salon is full
+    if (salon.j_actuelle >= salon.j_max) {
+      // Small delay to ensure all players are properly connected
+      setTimeout(async () => {
+        await gameService.startGame(peer, salonId);
+      }, 1000);
     }
   }
 
@@ -223,6 +241,17 @@ class SalonService {
     peer.currentSalon = salonId;
 
     this.publishSalonUpdate(peer, salonId, 'join', `Vous avez rejoint le salon ${salon.label}`);
+    // If this is a rapid salon and it's now full, start the game automatically
+    if (isRapide && salon.type === 'rapide') {
+      // Get updated salon info to check current player count
+      const updatedSalon = await this.validateSalonExists(peer, salonId);
+      if (updatedSalon && updatedSalon.j_actuelle >= updatedSalon.j_max) {
+        // Small delay to ensure all players are properly connected and ready
+        setTimeout(async () => {
+          await gameService.startGame(peer, salonId);
+        }, 1000);
+      }
+    }
   }
 
   async playerLeaveSalon(peer: any, salonId: number): Promise<void> {
@@ -258,15 +287,14 @@ class SalonService {
       const { error } = await supabase.from('salon').delete().eq('id', salonId);
 
       // Timer pour éviter les problèmes de synchronisation
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
       // On re récupère le salon pour vérifier s'il est toujours vide
       const updatedSalon = await this.validateSalonExists(peer, salonId);
-      
+
       if (!updatedSalon || updatedSalon.j_actuelle > 0) {
         return; // Le salon n'est plus vide, on ne le supprime pas
       }
-
 
       if (error) {
         peer.send({ user: 'server', type: 'error', message: 'Erreur lors de la suppression du salon' });
