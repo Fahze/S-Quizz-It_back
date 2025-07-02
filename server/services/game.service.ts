@@ -1,9 +1,10 @@
 import { clearSalonState, getSalonState, saveSalonState } from '~/utils/websockets.utils';
 import questionService from './question.service';
 import { AnswerResult, JoueurClassement } from '~~/types/common.types';
+import { ExtendedPeer } from '~~/interfaces/ws.interface';
 
 class GameService {
-  private validateGameState(peer: any, salonId: number, requireGameStarted = false) {
+  private validateGameState(peer: ExtendedPeer, salonId: number, requireGameStarted = false) {
     const salonMemoire = getSalonState(salonId);
 
     if (!salonMemoire) {
@@ -24,7 +25,7 @@ class GameService {
     return salonMemoire;
   }
 
-  private publishToSalon(peer: any, salonId: number, type: string, message: string, additionalData = {}) {
+  private publishToSalon(peer: ExtendedPeer, salonId: number, type: string, message: string, additionalData = {}) {
     const payload = {
       user: `salon-${salonId}`,
       type,
@@ -42,10 +43,10 @@ class GameService {
   }
 
   private haveAllPlayersAnswered(salonMemoire: any): boolean {
-    return Array.from(salonMemoire.joueurs.values()).every((joueur: any) => (joueur.questionIndex || 0) === salonMemoire.currentQuestionIndex + 1);
+    return Array.from(salonMemoire.joueurs.values()).every((joueur: any) => (joueur.questionIndex ?? 0) === salonMemoire.currentQuestionIndex + 1);
   }
 
-  private async startGameCountdown(peer: any, salonId: number, salonMemoire: any): Promise<void> {
+  private async startGameCountdown(peer: ExtendedPeer, salonId: number, salonMemoire: any): Promise<void> {
     let timer = 3;
 
     const startTimer = setInterval(() => {
@@ -72,21 +73,45 @@ class GameService {
     }, 1000);
   }
 
-  async handleReady(peer: any, salonId: number): Promise<void> {
+  async handleReady(peer: ExtendedPeer, salonId: number): Promise<void> {
     const salonMemoire = this.validateGameState(peer, salonId);
     if (!salonMemoire) return;
 
     const joueur = salonMemoire.joueurs.get(peer.id);
+    const previousReadyStatus = joueur.isReady;
     joueur.isReady = !joueur.isReady;
 
     salonMemoire.joueurs.set(peer.id, joueur);
     saveSalonState(salonId, salonMemoire);
 
     const readyStatus = joueur.isReady ? 'prêt' : 'pas prêt';
-    this.publishToSalon(peer, salonId, 'ready', `${peer.id} est ${readyStatus}`);
+    const playerName = joueur.profile.pseudo;
+
+    // Publier la mise à jour du statut ready
+    this.publishToSalon(peer, salonId, 'ready_status_update', `${playerName} est ${readyStatus}`, {
+      playerId: peer.id,
+      playerName: playerName,
+      isReady: joueur.isReady,
+      allPlayersReady: this.areAllPlayersReady(salonMemoire)
+    });
+
+    // Vérifier si tous les joueurs sont prêts
+    if (this.areAllPlayersReady(salonMemoire)) {
+      this.publishToSalon(peer, salonId, 'all_players_ready', 'Tous les joueurs sont prêts ! Le jeu peut commencer.', {
+        readyPlayers: Array.from(salonMemoire.joueurs.values()).filter((j: any) => j.isReady).map((j: any) => j.profile.pseudo)
+      });
+    } else if (previousReadyStatus && !joueur.isReady) {
+      // Un joueur qui était prêt ne l'est plus
+      this.publishToSalon(peer, salonId, 'player_unready', `${playerName} n'est plus prêt`, {
+        playerId: peer.id,
+        playerName: playerName
+      });
+    }
+
+    console.log(`[Salon ${salonId}] ${playerName} (${peer.id}) est maintenant ${readyStatus}`);
   }
 
-  async startGame(peer: any, salonId: number): Promise<void> {
+  async startGame(peer: ExtendedPeer, salonId: number): Promise<void> {
     const salonMemoire = this.validateGameState(peer, salonId);
     if (!salonMemoire) return;
 
@@ -128,7 +153,7 @@ class GameService {
     }
   }
 
-  async answerQuestion(peer: any, salonId: number, questionId: number, tempsReponse: number, answerId?: number, answerText?: string): Promise<void> {
+  async answerQuestion(peer: ExtendedPeer, salonId: number, questionId: number, tempsReponse: number, answerId?: number, answerText?: string): Promise<void> {
     const salonMemoire = this.validateGameState(peer, salonId, true);
     if (!salonMemoire) return;
 
@@ -187,7 +212,7 @@ class GameService {
     });
   }
 
-  async endGame(peer: any, salonId: number): Promise<void> {
+  async endGame(peer: ExtendedPeer, salonId: number): Promise<void> {
     const salonMemoire = this.validateGameState(peer, salonId);
     if (!salonMemoire) return;
 

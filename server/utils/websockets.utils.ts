@@ -1,7 +1,8 @@
 import salonService from '~/services/salon.service';
 import { salonsEnCours, SalonState } from '~/websockets/websocket.state';
+import { ExtendedPeer } from '~~/interfaces/ws.interface';
 
-export async function connectToTopic(peer, topic: string) {
+export async function connectToTopic(peer : ExtendedPeer, topic: string) {
   if (!peer || !topic) {
     throw new Error('Peer and topic are required to connect');
   }
@@ -25,7 +26,7 @@ export function extractToken(protocolHeader: string | null): string | null {
 }
 
 // Envoyer une erreur standard
-export function sendErrorToClient(peer: any, message: string) {
+export function sendErrorToClient(peer: ExtendedPeer, message: string) {
   peer.send({ user: 'server', type: 'error', message });
 }
 
@@ -37,15 +38,17 @@ export function extractId(text: string, prefix: string): number | null {
 }
 
 // Authentifier un peer via Supabase JWT
-export async function authenticatePeer(peer: any, supabase: any, token: string): Promise<string | null> {
+export async function authenticatePeer(peer: ExtendedPeer, token: string): Promise<string | null> {
   const { user, profile } = await getUserWithToken(`Bearer ${token}`);
+
   peer.user = user;
   peer.profile = profile;
+
   return user.id;
 }
 
 // Nettoyer et quitter tous les salons d'un peer
-export function leaveAllSalons(peer: any) {
+export function leaveAllSalons(peer: ExtendedPeer) {
   peer.topics.forEach((topic: string) => {
     if (topic.startsWith('salon-')) {
       const idStr = topic.split('-')[1];

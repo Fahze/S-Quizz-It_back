@@ -1,6 +1,7 @@
 import { getAllJoueursFromSalon, getOrCreateSalon, getSalonState, saveSalonState, leaveAllSalons } from '~/utils/websockets.utils';
 import { CreateSalonParams, SalonData } from '~~/types/common.types';
 import gameService from './game.service';
+import { ExtendedPeer } from '~~/interfaces/ws.interface';
 
 class SalonService {
   // Utility methods
@@ -8,7 +9,7 @@ class SalonService {
     return label + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
   }
 
-  private async validateSalonExists(peer: any, salonId: number): Promise<SalonData | null> {
+  private async validateSalonExists( salonId: number, peer?: ExtendedPeer): Promise<SalonData | null> {
     if (isNaN(salonId)) {
       peer.send({ user: 'server', type: 'error', message: 'ID invalide' });
       return null;
@@ -25,7 +26,7 @@ class SalonService {
     return salon;
   }
 
-  private validateSalonCapacity(peer: any, salon: SalonData): boolean {
+  private validateSalonCapacity(peer: ExtendedPeer, salon: SalonData): boolean {
     if (salon.commence) {
       peer.send({ user: 'server', type: 'error', message: 'Le salon a déjà commencé une partie' });
       return false;
@@ -41,7 +42,7 @@ class SalonService {
 
   private async updatePlayerCount(salonId: number, increment: boolean): Promise<boolean> {
     const supabase = await useSupabase();
-    const salon = await this.validateSalonExists({}, salonId);
+    const salon = await this.validateSalonExists(salonId);
     if (!salon) return false;
 
     const newCount = increment ? salon.j_actuelle + 1 : Math.max(salon.j_actuelle - 1, 0);
@@ -51,7 +52,7 @@ class SalonService {
     return !error;
   }
 
-  private publishSalonUpdate(peer: any, salonId: number, type: string, message: string) {
+  private publishSalonUpdate(peer: ExtendedPeer, salonId: number, type: string, message: string) {
     const payload = {
       user: `salon-${salonId}`,
       type,
@@ -65,7 +66,7 @@ class SalonService {
   }
 
   // Public methods
-  async broadcastSalons(peer: any, topic: string): Promise<void> {
+  async broadcastSalons(peer: ExtendedPeer, topic: string): Promise<void> {
     const supabase = await useSupabase();
     const { data: salons, error } = await supabase.from('salon').select('*').eq('type', 'normal');
 
@@ -75,8 +76,8 @@ class SalonService {
     peer.publish(topic, JSON.stringify(payload));
   }
 
-  async broadcastSalonInfo(peer: any, salonId: number): Promise<void> {
-    const salon = await this.validateSalonExists(peer, salonId);
+  async broadcastSalonInfo(peer: ExtendedPeer, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(salonId, peer);
     if (!salon) return;
 
     const salonMemoire = getSalonState(salonId);
@@ -88,7 +89,7 @@ class SalonService {
     peer.send({ type: 'salon_info', salonId, players: getAllJoueursFromSalon(salonId), salon });
   }
 
-  async createSalon(peer: any, params: CreateSalonParams): Promise<any> {
+  async createSalon(peer: ExtendedPeer, params: CreateSalonParams): Promise<any> {
     const supabase = await useSupabase();
 
     if (!peer || !params.label) {
@@ -106,7 +107,7 @@ class SalonService {
     return error;
   }
 
-  async createNormalSalon(peer: any, params: CreateSalonParams): Promise<void> {
+  async createNormalSalon(peer: ExtendedPeer, params: CreateSalonParams): Promise<void> {
     if (!peer) {
       throw new Error('Peer is required to create a normal salon');
     }
@@ -129,7 +130,7 @@ class SalonService {
     }
   }
 
-  async createRapideSalon(peer: any): Promise<void> {
+  async createRapideSalon(peer: ExtendedPeer): Promise<void> {
     if (!peer) {
       throw new Error('Peer is required to create a rapid salon');
     }
@@ -178,7 +179,7 @@ class SalonService {
   }
 
   private async checkAndStartRapidGame(peer: any, salonId: number): Promise<void> {
-    const salon = await this.validateSalonExists(peer, salonId);
+    const salon = await this.validateSalonExists(salonId, peer);
     if (!salon || salon.type !== 'rapide') return;
 
     // Check if salon is full
@@ -190,8 +191,8 @@ class SalonService {
     }
   }
 
-  async deleteSalon(peer: any, salonId: number): Promise<void> {
-    const salon = await this.validateSalonExists(peer, salonId);
+  async deleteSalon(peer: ExtendedPeer, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(salonId, peer);
     if (!salon) return;
 
     const supabase = await useSupabase();
@@ -204,8 +205,8 @@ class SalonService {
     }
   }
 
-  async playerJoinSalon(peer: any, salonId: number, isRapide: boolean): Promise<void> {
-    const salon = await this.validateSalonExists(peer, salonId);
+  async playerJoinSalon(peer: ExtendedPeer, salonId: number, isRapide: boolean): Promise<void> {
+    const salon = await this.validateSalonExists(salonId, peer);
     if (!salon || !this.validateSalonCapacity(peer, salon)) {
       return;
     }
@@ -244,7 +245,7 @@ class SalonService {
     // If this is a rapid salon and it's now full, start the game automatically
     if (isRapide && salon.type === 'rapide') {
       // Get updated salon info to check current player count
-      const updatedSalon = await this.validateSalonExists(peer, salonId);
+      const updatedSalon = await this.validateSalonExists(salonId, peer);
       if (updatedSalon && updatedSalon.j_actuelle >= updatedSalon.j_max) {
         // Small delay to ensure all players are properly connected and ready
         setTimeout(async () => {
@@ -254,8 +255,8 @@ class SalonService {
     }
   }
 
-  async playerLeaveSalon(peer: any, salonId: number): Promise<void> {
-    const salon = await this.validateSalonExists(peer, salonId);
+  async playerLeaveSalon(peer: ExtendedPeer, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(salonId, peer);
     if (!salon) return;
 
     // Update player count in database
@@ -290,8 +291,8 @@ class SalonService {
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
       // On re récupère le salon pour vérifier s'il est toujours vide
-      const updatedSalon = await this.validateSalonExists(peer, salonId);
-
+      const updatedSalon = await this.validateSalonExists(salonId, peer);
+      
       if (!updatedSalon || updatedSalon.j_actuelle > 0) {
         return; // Le salon n'est plus vide, on ne le supprime pas
       }

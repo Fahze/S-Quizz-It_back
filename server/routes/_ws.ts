@@ -2,9 +2,10 @@ import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalo
 import salonService from '../services/salon.service';
 import { salonsEnCours } from '~/websockets/websocket.state';
 import gameService from '~/services/game.service';
+import { ExtendedPeer } from '~~/interfaces/ws.interface';
 
 export default defineWebSocketHandler({
-  async open(peer) {
+  async open(peer: ExtendedPeer) {
     // 1) Récupération et vérification du token
     const protocolHeader = peer.request.headers.get('sec-websocket-protocol');
     const token = extractToken(protocolHeader);
@@ -14,8 +15,7 @@ export default defineWebSocketHandler({
     }
 
     // 2) Authentification via Supabase
-    const supabase = await useSupabase();
-    const userId = await authenticatePeer(peer, supabase, token);
+    const userId = await authenticatePeer(peer, token);
     if (!userId) {
       sendErrorToClient(peer, 'Authentification invalide');
       return peer.close();
@@ -26,18 +26,11 @@ export default defineWebSocketHandler({
     peer.send({ user: 'server', message: `Bienvenue ! userId: ${userId}` });
   },
 
-  async message(peer: any, message): Promise<any> {
+  async message(peer: ExtendedPeer, message): Promise<any> {
     const text = message.text().trim();
     if (text === 'fetch') {
       await salonService.broadcastSalons(peer, 'salons');
       peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
-    }
-
-    const salonInfo = extractId(text, 'salon-info');
-    if (salonInfo !== null) {
-      if (peer.currentSalon == salonInfo) {
-        salonService.broadcastSalonInfo(peer, salonInfo);
-      }
     }
 
     if (text.startsWith('create:')) {
@@ -79,6 +72,7 @@ export default defineWebSocketHandler({
     }
 
     const readyId = extractId(text, 'ready');
+
     if (readyId) {
       if (peer.currentSalon === readyId) {
         await gameService.handleReady(peer, readyId);
@@ -105,14 +99,16 @@ export default defineWebSocketHandler({
         });
       }
     }
+
+    peer.send({ user: peer.id, message: text });
   },
 
-  close(peer) {
+  close(peer: ExtendedPeer) {
     console.log(`[ws] ${peer.id} déconnecté`);
     leaveAllSalons(peer);
   },
 
-  error(peer, err) {
+  error(peer: ExtendedPeer, err) {
     console.error('[ws] erreur', err);
   },
 });

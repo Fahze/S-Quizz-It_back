@@ -5,7 +5,15 @@ export interface SalonState {
     string,
     {
       userId: string;
-      profile: { id: string; pseudo: string; avatar: string; elo: number };
+      profile: { 
+        id: number; 
+        pseudo: string; 
+        avatar: {
+          idAvatar: number; 
+          urlavatar: string;
+        }; 
+        elo: number 
+      };
       score: number;
       connected: boolean;
       isReady: boolean;
