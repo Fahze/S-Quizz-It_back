@@ -1,84 +1,118 @@
-// Utilitaire pour générer un label aléatoire
-function genLabel(): string {
-  return 'Salon-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-}
-
-// Diffuse à tous les clients la liste actuelle des salons
-async function broadcastSalons(peer) {
-  const supabase = await useSupabase();
-
-  const { data: salons, error } = await supabase.from('salon').select('*');
-  const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
-
-  peer.publish('chat', JSON.stringify(payload));
-}
+import { authenticatePeer, connectToTopic, extractId, extractToken, leaveAllSalons, sendErrorToClient } from '~/utils/websockets.utils';
+import salonService from '../services/salon.service';
+import { salonsEnCours } from '~/websockets/websocket.state';
+import gameService from '~/services/game.service';
 
 export default defineWebSocketHandler({
   async open(peer) {
-    peer.subscribe('chat');
-    peer.publish('chat', { user: 'server', message: `${peer} joined!` });
-    // Et la liste initiale des salons
-    await broadcastSalons(peer);
+    // 1) Récupération et vérification du token
+    const protocolHeader = peer.request.headers.get('sec-websocket-protocol');
+    const token = extractToken(protocolHeader);
+    if (!token) {
+      sendErrorToClient(peer, 'Veuillez compléter le protocole comme "auth,<token>"');
+      return peer.close();
+    }
+
+    // 2) Authentification via Supabase
+    const supabase = await useSupabase();
+    const userId = await authenticatePeer(peer, supabase, token);
+    if (!userId) {
+      sendErrorToClient(peer, 'Authentification invalide');
+      return peer.close();
+    }
+
+    // 3) Abonnement au topic général
+    connectToTopic(peer, 'salons');
+    peer.send({ user: 'server', message: `Bienvenue ! userId: ${userId}` });
   },
 
-  async message(peer, message): Promise<any> {
-    const supabase = await useSupabase();
-
-    const text = message.text();
-    // Pong
-    if (text === 'ping') {
-      peer.publish('chat', 'pong');
-      return;
-    }
-
-    // Création d'un salon
-    if (text === 'create') {
-      const newSalon = {
-        label: genLabel(),
-        difficulte: 1,
-        type: 'normal' as const,
-      };
-      const { error: insertError } = await supabase.from('salon').insert(newSalon);
-
-      if (insertError) {
-        peer.send({ type: 'error', message: insertError.message });
-      } else {
-        // Après création, on rediffuse la liste entière à tous
-        await broadcastSalons(peer);
-      }
-      return;
-    }
-
-    // Suppression d'un salon : "delete <id>"
-    if (text.startsWith('delete ')) {
-      const parts = text.split(' ');
-      const id = parseInt(parts[1], 10);
-      if (isNaN(id)) {
-        return peer.send({ type: 'error', message: 'ID invalide pour deletion' });
-      }
-
-      const { error: deleteError } = await supabase.from('salon').delete().eq('id', id);
-
-      if (deleteError) {
-        peer.send({ type: 'error', message: deleteError.message });
-      } else {
-        // Après suppression, on rediffuse la liste entière à tous
-        await broadcastSalons(peer);
-      }
-      return;
-    }
-
+  async message(peer: any, message): Promise<any> {
+    const text = message.text().trim();
     if (text === 'fetch') {
-      await broadcastSalons(peer);
+      await salonService.broadcastSalons(peer, 'salons');
+      console.log(
+        salonsEnCours,
+        salonsEnCours.forEach((salon, key) => {
+          salon.joueurs.forEach((joueur) => {
+            console.log(joueur);
+          });
+        })
+      );
+      peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
+    }
+
+    if (text.startsWith('create:')) {
+      const answerData = JSON.parse(text.replace('create:', ''));
+      const { difficulte, j_max, label } = answerData;
+      await salonService.createNormalSalon(peer, { label, difficulte, type: 'normal', j_max });
+    }
+
+    if (text === 'rapide') {
+      await salonService.createRapideSalon(peer);
+    }
+
+    const joinId = extractId(text, 'connect');
+    if (joinId !== null) {
+      if (peer.currentSalon == joinId) {
+        peer.send({
+          user: 'server',
+          type: 'error',
+          message: 'Vous êtes déjà dans ce salon',
+        });
+      } else {
+        await salonService.playerJoinSalon(peer, joinId);
+      }
       return;
     }
 
-    // Sinon, on peut renvoyer un écho
-    peer.send({ type: 'echo', message: text });
+    const leaveId = extractId(text, 'leave');
+    if (leaveId) {
+      if (peer.currentSalon === leaveId) {
+        await salonService.playerLeaveSalon(peer, leaveId);
+      } else {
+        peer.send({
+          user: 'server',
+          type: 'error',
+          message: 'Vous ne pouvez pas quitter un salon dont vous ne faites pas partie',
+        });
+      }
+      return;
+    }
+
+    const readyId = extractId(text, 'ready');
+    if (readyId) {
+      if (peer.currentSalon === readyId) {
+        await gameService.handleReady(peer, readyId);
+      }
+    }
+
+    const startId = extractId(text, 'start');
+    if (startId) {
+      if (peer.currentSalon === startId) {
+        await gameService.startGame(peer, startId);
+      }
+    }
+
+    if (text.startsWith('answer:')) {
+      const answerData = JSON.parse(text.replace('answer:', ''));
+      const { salonId, questionId, tempsReponse, answerId, answerText } = answerData;
+      if (peer.currentSalon === salonId) {
+        await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
+      } else {
+        peer.send({
+          user: 'server',
+          type: 'error',
+          message: 'Vous devez être dans le salon pour répondre à une question',
+        });
+      }
+    }
+
+    peer.send({ user: peer.id, message: text });
   },
 
   close(peer) {
-    peer.publish('chat', peer.id + ' left');
+    console.log(`[ws] ${peer.id} déconnecté`);
+    leaveAllSalons(peer);
   },
 
   error(peer, err) {
