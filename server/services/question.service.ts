@@ -1,7 +1,9 @@
 import { Question, AnswerResult, JoueurClassement } from '~~/types/common.types';
 
+const supabase = await useSupabase();
+
 class QuestionService {
-  async getQuestions(niveauDifficulte): Promise<Question[]> {
+  async getQuestions(niveauDifficulte : number): Promise<Question[]> {
     if (niveauDifficulte !== null && (niveauDifficulte <= 1 || niveauDifficulte >= 3)) {
       console.error(`Niveau de difficulté invalide: ${niveauDifficulte}`);
       throw createError({
@@ -9,9 +11,6 @@ class QuestionService {
         statusMessage: 'Niveau de difficulté invalide',
       });
     }
-
-    // On récupère les questions depuis la base de données
-    const supabase = await useSupabase();
 
     const { data: questions, error } = await supabase.from('question').select('*, reponse(id, label)').eq('niveauDifficulte', niveauDifficulte);
 
@@ -56,8 +55,13 @@ class QuestionService {
     return question;
   }
 
-  async checkAnswer(body): Promise<AnswerResult> {
-    const { idQuestion, idReponse, idJoueur, tempsReponse, type, reponseJoueur } = body;
+  async checkAnswer(body : any): Promise<AnswerResult> {
+    const idQuestion : number = parseInt(body.idQuestion);
+    const idJoueur : number = parseInt(body.idJoueur);
+    const tempsReponse : number = parseInt(body.tempsReponse);
+    const idReponse : number = parseInt(body.idReponse);
+    const type : string = body.type.toLowerCase();
+    const reponseJoueur : string = body.reponseJoueur ? body.reponseJoueur.trim() : '';
 
     // Vérifie si le joueur a laissé la réponse vide → automatiquement incorrect
     if (
@@ -80,8 +84,7 @@ class QuestionService {
 
     this.validateCheckAnswerInput(idQuestion, idJoueur, tempsReponse, type, body);
 
-    const supabase = await useSupabase();
-    const niveauDifficulte = await this.getNiveauDifficulte(supabase, idQuestion);
+    const niveauDifficulte = await this.getNiveauDifficulte(idQuestion);
 
     let result: {
       correcte: boolean;
@@ -92,9 +95,9 @@ class QuestionService {
     };
 
     if (type === 'qcm') {
-      result = await this.handleQcmType(supabase, idQuestion, idReponse, body);
+      result = await this.handleQcmType(idQuestion, idReponse, body);
     } else if (type === 'input') {
-      result = await this.handleInputType(supabase, idQuestion, reponseJoueur, niveauDifficulte, body);
+      result = await this.handleInputType(idQuestion, reponseJoueur, niveauDifficulte, body);
     } else {
       console.error('Type de question invalide', type);
       throw createError({ statusCode: 400, statusMessage: 'Type de question invalide' });
@@ -119,7 +122,7 @@ class QuestionService {
     };
   }
 
-  private validateCheckAnswerInput(idQuestion: any, idJoueur: any, tempsReponse: any, type: any, body: any) {
+  private validateCheckAnswerInput(idQuestion: number, idJoueur: number, tempsReponse: number, type: string, body: any) {
     if (!idQuestion || !idJoueur || isNaN(tempsReponse) || !type) {
       console.error('Champs requis manquants ou invalides', body);
       throw createError({
@@ -192,7 +195,7 @@ class QuestionService {
     return updates;
   }
 
-  private async getNiveauDifficulte(supabase: any, idQuestion: any): Promise<number> {
+  private async getNiveauDifficulte(idQuestion: number): Promise<number> {
     const { data: questionData, error: errorQuestion } = await supabase.from('question').select('niveauDifficulte').eq('id', idQuestion).single();
     if (errorQuestion || !questionData) {
       console.error('Erreur récupération niveau difficulté', errorQuestion);
@@ -201,7 +204,7 @@ class QuestionService {
     return questionData.niveauDifficulte;
   }
 
-  private async handleQcmType(supabase: any, idQuestion: any, idReponse: any, body: any) {
+  private async handleQcmType(idQuestion: number, idReponse: number, body: any) {
     if (!idReponse) {
       console.error('idReponse requis pour QCM', body);
       throw createError({ statusCode: 400, statusMessage: 'idReponse requis pour QCM' });
@@ -220,7 +223,7 @@ class QuestionService {
     }
 
     return {
-      correcte: reponseqcm?.value === true,
+      correcte: reponseqcm.value === true,
       fautesOrthographe: false,
       distance: 0,
       malus: 0,
@@ -228,7 +231,7 @@ class QuestionService {
     };
   }
 
-  private async handleInputType(supabase: any, idQuestion: any, reponseJoueur: any, niveauDifficulte: number, body: any) {
+  private async handleInputType(idQuestion: number, reponseJoueur: string, niveauDifficulte: number, body: any) {
     if (!reponseJoueur || typeof reponseJoueur !== 'string') {
       console.error('reponseJoueur est requis pour input', body);
       throw createError({ statusCode: 400, statusMessage: 'reponseJoueur est requis pour input' });
