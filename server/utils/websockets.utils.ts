@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import salonService from '~/services/salon.service';
 import { salonsEnCours, SalonState } from '~/websockets/websocket.state';
 
@@ -38,7 +37,6 @@ export function extractId(text: string, prefix: string): number | null {
 }
 
 // Authentifier un peer via Supabase JWT
-type Supabase = ReturnType<typeof createClient>;
 export async function authenticatePeer(peer: any, supabase: any, token: string): Promise<string | null> {
   const { user, profile } = await getUserWithToken(`Bearer ${token}`);
   peer.user = user;
@@ -92,8 +90,10 @@ export function getJoueurFromSalon(salonId: number, peerId: string) {
   return salonMemoire.joueurs.get(peerId) || null;
 }
 
-export function getAllJoueursFromSalon(salonId: number): any | null {
+export function getAllJoueursFromSalon(salonId: number) {
   const salonMemoire = getSalonState(salonId);
   if (!salonMemoire) return null;
-  return Object.fromEntries(Array.from(salonMemoire.joueurs.entries()));
+
+  const listing = Object.fromEntries(Array.from(salonMemoire.joueurs.entries()));
+  return listing
 }
