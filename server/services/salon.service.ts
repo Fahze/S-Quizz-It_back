@@ -111,7 +111,7 @@ class SalonService {
     const { data: salons } = await supabase.from('salon').select('*').eq('type', 'normal').order('id', { ascending: false }).limit(1);
 
     if (salons?.length > 0) {
-      await this.playerJoinSalon(peer, salons[0].id);
+      await this.playerJoinSalon(peer, salons[0].id, false);
     }
   }
 
@@ -132,7 +132,7 @@ class SalonService {
 
     if (existingSalons?.length > 0) {
       // Join existing rapid salon
-      await this.playerJoinSalon(peer, existingSalons[0].id);
+      await this.playerJoinSalon(peer, existingSalons[0].id, true);
       return;
     }
 
@@ -155,7 +155,7 @@ class SalonService {
     const { data: salons } = await supabase.from('salon').select('*').eq('type', 'rapide').order('id', { ascending: false }).limit(1);
 
     if (salons?.length > 0) {
-      await this.playerJoinSalon(peer, salons[0].id);
+      await this.playerJoinSalon(peer, salons[0].id, true);
     }
   }
 
@@ -173,7 +173,7 @@ class SalonService {
     }
   }
 
-  async playerJoinSalon(peer: any, salonId: number): Promise<void> {
+  async playerJoinSalon(peer: any, salonId: number, isRapide: boolean): Promise<void> {
     const salon = await this.validateSalonExists(peer, salonId);
     if (!salon || !this.validateSalonCapacity(peer, salon)) {
       return;
@@ -200,7 +200,7 @@ class SalonService {
       },
       score: 0,
       connected: true,
-      isReady: false,
+      isReady: isRapide,
       finished: false,
     });
 
@@ -233,6 +233,9 @@ class SalonService {
     peer.unsubscribe(`salon-${salonId}`);
     peer.currentSalon = null;
     peer.subscribe('salons');
+    setTimeout(() => {
+      this.broadcastSalons(peer, 'salons');
+    }, 2000);
 
     this.publishSalonUpdate(peer, salonId, 'leave', `Vous avez quitté le salon ${salon.label}`);
   }

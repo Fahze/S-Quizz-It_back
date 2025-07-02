@@ -53,7 +53,7 @@ export default defineWebSocketHandler({
           message: 'Vous êtes déjà dans ce salon',
         });
       } else {
-        await salonService.playerJoinSalon(peer, joinId);
+        await salonService.playerJoinSalon(peer, joinId, false);
       }
       return;
     }
