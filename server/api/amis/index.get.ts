@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
     if (amisIds.length > 0) {
       const { data: profils, error: profilsError } = await supabase
         .from('profile')
-        .select('*')
+        .select('*, avatar(*)')
         .in('id', amisIds);
       if (profilsError) {
         throw createError({ statusCode: 500, statusMessage: 'Erreur lors de la récupération des profils amis.' });
@@ -72,7 +72,25 @@ defineRouteMeta({
       },
     ],
     responses: {
-      200: { description: 'Liste des profils amis.' },
+      200: { 
+        description: 'Liste des profils amis.',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'ID du profil ami' },
+                  avatar: { type: 'object', description: 'Avatar de l\'ami', nullable: true },
+                  pseudo: { type: 'string', description: 'Pseudo de l\'ami' },
+                  elo: { type: 'number', description: 'Elo de l\'ami' },
+                },
+              },
+            },
+          },
+        },
+       },
       401: { description: 'Non authentifié.' },
       500: { description: 'Erreur serveur.' },
     },

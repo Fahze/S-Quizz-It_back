@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
       const ids = demandes.map(d => d.idProfilDemandeur);
       const { data: profilsData, error: profilsError } = await supabase
         .from('profile')
-        .select('*')
+        .select('*, avatar(*)')
         .in('id', ids);
       if (profilsError) {
         throw createError({ statusCode: 500, statusMessage: 'Erreur lors de la récupération des profils.' });
@@ -67,7 +67,25 @@ defineRouteMeta({
       }
     ],
     responses: {
-      200: { description: 'Liste des profils demandeurs.' },
+      200: { 
+        description: 'Liste des profils demandeurs.',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'ID du profil' },
+                  avatar: { type: 'object', description: 'Détails de l\'avatar' },
+                  pseudo: { type: 'string', description: 'Pseudo du profil' },
+                  elo: { type: 'number', description: 'Elo du profil' }
+                }
+              }
+            }
+          }
+        }
+       },
       401: { description: 'Non authentifié.' },
       500: { description: 'Erreur serveur.' }
     }
