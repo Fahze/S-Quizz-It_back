@@ -33,6 +33,13 @@ export default defineWebSocketHandler({
       peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
     }
 
+    const salonInfo = extractId(text, 'salon-info');
+    if (salonInfo !== null) {
+      if (peer.currentSalon == salonInfo) {
+        salonService.broadcastSalonInfo(peer, salonInfo);
+      }
+    }
+
     if (text.startsWith('create:')) {
       const answerData = JSON.parse(text.replace('create:', ''));
       const { difficulte, j_max, label } = answerData;
@@ -98,8 +105,6 @@ export default defineWebSocketHandler({
         });
       }
     }
-
-    peer.send({ user: peer.id, message: text });
   },
 
   close(peer) {

@@ -74,6 +74,19 @@ class SalonService {
     peer.publish(topic, JSON.stringify(payload));
   }
 
+  async broadcastSalonInfo(peer: any, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(peer, salonId);
+    if (!salon) return;
+
+    const salonMemoire = getSalonState(salonId);
+    if (!salonMemoire) {
+      peer.send({ user: 'server', type: 'error', message: 'Salon introuvable en mémoire' });
+      return;
+    }
+
+    peer.send({ type: 'salon_info', salonId, players: getAllJoueursFromSalon(salonId), salon });
+  }
+
   async createSalon(peer: any, params: CreateSalonParams): Promise<any> {
     const supabase = await useSupabase();
 
