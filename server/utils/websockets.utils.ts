@@ -85,3 +85,15 @@ export function saveSalonState(salonId: number, salonState: SalonState) {
 export function clearSalonState(salonId: number) {
   salonsEnCours.delete(salonId);
 }
+
+export function getJoueurFromSalon(salonId: number, peerId: string) {
+  const salonMemoire = getSalonState(salonId);
+  if (!salonMemoire) return null;
+  return salonMemoire.joueurs.get(peerId) || null;
+}
+
+export function getAllJoueursFromSalon(salonId: number): any | null {
+  const salonMemoire = getSalonState(salonId);
+  if (!salonMemoire) return null;
+  return Object.fromEntries(Array.from(salonMemoire.joueurs.entries()));
+}

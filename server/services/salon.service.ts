@@ -1,199 +1,240 @@
-import { getOrCreateSalon, saveSalonState } from '~/utils/websockets.utils';
+import { getAllJoueursFromSalon, getOrCreateSalon, getSalonState, saveSalonState, leaveAllSalons } from '~/utils/websockets.utils';
+import { CreateSalonParams, SalonData } from '~~/types/common.types';
 
 class SalonService {
-  // Utilitaire pour générer un label aléatoire
-  genLabel(label: string): string {
+  // Utility methods
+  private genLabel(label: string): string {
     return label + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
   }
 
-  // Diffuse à tous les clients la liste actuelle des salons
-  async broadcastSalons(peer, topic) {
-    const supabase = await useSupabase();
+  private async validateSalonExists(peer: any, salonId: number): Promise<SalonData | null> {
+    if (isNaN(salonId)) {
+      peer.send({ user: 'server', type: 'error', message: 'ID invalide' });
+      return null;
+    }
 
+    const supabase = await useSupabase();
+    const { data: salon, error } = await supabase.from('salon').select('*').eq('id', salonId).single();
+
+    if (error || !salon) {
+      peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+      return null;
+    }
+
+    return salon;
+  }
+
+  private validateSalonCapacity(peer: any, salon: SalonData): boolean {
+    if (salon.commence) {
+      peer.send({ user: 'server', type: 'error', message: 'Le salon a déjà commencé une partie' });
+      return false;
+    }
+
+    if (salon.j_actuelle >= salon.j_max) {
+      peer.send({ user: 'server', type: 'error', message: 'Salon plein' });
+      return false;
+    }
+
+    return true;
+  }
+
+  private async updatePlayerCount(salonId: number, increment: boolean): Promise<boolean> {
+    const supabase = await useSupabase();
+    const salon = await this.validateSalonExists({}, salonId);
+    if (!salon) return false;
+
+    const newCount = increment ? salon.j_actuelle + 1 : Math.max(salon.j_actuelle - 1, 0);
+
+    const { error } = await supabase.from('salon').update({ j_actuelle: newCount }).eq('id', salonId);
+
+    return !error;
+  }
+
+  private publishSalonUpdate(peer: any, salonId: number, type: string, message: string) {
+    const payload = {
+      user: `salon-${salonId}`,
+      type,
+      salonId,
+      players: getAllJoueursFromSalon(salonId),
+      message,
+    };
+
+    peer.publish(`salon-${salonId}`, JSON.stringify(payload));
+    peer.send(payload);
+  }
+
+  // Public methods
+  async broadcastSalons(peer: any, topic: string): Promise<void> {
+    const supabase = await useSupabase();
     const { data: salons, error } = await supabase.from('salon').select('*').eq('type', 'normal');
+
     const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
 
     peer.send(JSON.stringify(payload));
     peer.publish(topic, JSON.stringify(payload));
   }
 
-  async createSalon(peer, { label, difficulte, type, j_max }) {
+  async createSalon(peer: any, params: CreateSalonParams): Promise<any> {
     const supabase = await useSupabase();
-    if (!peer || !label) {
+
+    if (!peer || !params.label) {
       throw new Error('Peer and label are required to create a salon');
     }
+
     const newSalon = {
-      label: label,
-      difficulte: difficulte ?? 1,
-      type: type ?? 'rapide',
-      j_max: j_max ?? 4,
+      label: params.label,
+      difficulte: params.difficulte ?? 1,
+      type: params.type ?? ('rapide' as const),
+      j_max: params.j_max ?? 4,
     };
-    const { error: insertError } = await supabase.from('salon').insert(newSalon);
-    return insertError;
+
+    const { error } = await supabase.from('salon').insert(newSalon);
+    return error;
   }
 
-  async createNormalSalon(peer, { label, difficulte, type, j_max }) {
-    const supabase = await useSupabase();
+  async createNormalSalon(peer: any, params: CreateSalonParams): Promise<void> {
     if (!peer) {
       throw new Error('Peer is required to create a normal salon');
     }
-    const insertError = await this.createSalon(peer, {
-      label: label,
-      difficulte: difficulte,
-      type: type,
-      j_max: j_max,
-    });
+
+    const insertError = await this.createSalon(peer, params);
+
     if (insertError) {
       peer.send({ type: 'error', message: insertError.message });
-    } else {
-      peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
-      // Récupérer l'ID du salon créé
-      const { data: salons } = await supabase.from('salon').select('*').eq('type', 'normal').order('id', { ascending: false }).limit(1);
-      if (salons.length > 0) {
-        const salonId = salons[0].id;
-        await this.playerJoinSalon(peer, salonId);
-      }
+      return;
+    }
+
+    peer.send({ type: 'success', message: 'Salon normal créé avec succès' });
+
+    // Get the created salon and join it
+    const supabase = await useSupabase();
+    const { data: salons } = await supabase.from('salon').select('*').eq('type', 'normal').order('id', { ascending: false }).limit(1);
+
+    if (salons?.length > 0) {
+      await this.playerJoinSalon(peer, salons[0].id);
     }
   }
 
-  async createRapideSalon(peer) {
-    const supabase = await useSupabase();
+  async createRapideSalon(peer: any): Promise<void> {
     if (!peer) {
       throw new Error('Peer is required to create a rapid salon');
     }
-    // Vérifier si le salon rapide existe déjà
+
+    const supabase = await useSupabase();
+
+    // Check if rapid salon already exists
     const { data: existingSalons, error } = await supabase.from('salon').select('*').eq('type', 'rapide').eq('commence', false).limit(1);
+
     if (error) {
       peer.send({ type: 'error', message: error.message });
       return;
     }
-    if (existingSalons.length > 0) {
-      // Si un salon rapide existe déjà, rejoindre ce salon
-      const salonId = existingSalons[0].id;
-      await this.playerJoinSalon(peer, salonId);
-    } else {
-      // Sinon, créer un nouveau salon rapide
-      const insertError = await this.createSalon(peer, {
-        label: this.genLabel('Rapide'),
-        difficulte: 2,
-        type: 'rapide',
-        j_max: 4,
-      });
-      if (insertError) {
-        peer.send({ type: 'error', message: insertError.message });
-      } else {
-        peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
-        // Récupérer l'ID du salon créé
-        const { data: salons } = await supabase.from('salon').select('*').eq('type', 'rapide').order('id', { ascending: false }).limit(1);
-        if (salons.length > 0) {
-          const salonId = salons[0].id;
-          await this.playerJoinSalon(peer, salonId);
-        }
-      }
+
+    if (existingSalons?.length > 0) {
+      // Join existing rapid salon
+      await this.playerJoinSalon(peer, existingSalons[0].id);
+      return;
+    }
+
+    // Create new rapid salon
+    const insertError = await this.createSalon(peer, {
+      label: this.genLabel('Rapide'),
+      difficulte: 2,
+      type: 'rapide' as const,
+      j_max: 4,
+    });
+
+    if (insertError) {
+      peer.send({ type: 'error', message: insertError.message });
+      return;
+    }
+
+    peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
+
+    // Get the created salon and join it
+    const { data: salons } = await supabase.from('salon').select('*').eq('type', 'rapide').order('id', { ascending: false }).limit(1);
+
+    if (salons?.length > 0) {
+      await this.playerJoinSalon(peer, salons[0].id);
     }
   }
 
-  async deleteSalon(peer, salonId: number) {
+  async deleteSalon(peer: any, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(peer, salonId);
+    if (!salon) return;
+
     const supabase = await useSupabase();
+    const { error } = await supabase.from('salon').delete().eq('id', salonId);
 
-    if (isNaN(salonId)) {
-      return peer.send({ type: 'error', message: 'ID invalide pour deletion' });
-    }
-
-    const { error: deleteError } = await supabase.from('salon').delete().eq('id', salonId);
-
-    if (deleteError) {
-      peer.send({ type: 'error', message: deleteError.message });
+    if (error) {
+      peer.send({ type: 'error', message: error.message });
     } else {
       await this.broadcastSalons(peer, 'chat');
     }
   }
 
-  async playerJoinSalon(peer, salonId: number) {
-    const supabase = await useSupabase();
-    if (isNaN(salonId)) {
-      return peer.send({ type: 'error', message: 'ID invalide pour rejoindre le salon' });
+  async playerJoinSalon(peer: any, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(peer, salonId);
+    if (!salon || !this.validateSalonCapacity(peer, salon)) {
+      return;
     }
 
-    // Vérifier si le salon existe
-    const { data: salon, error: fetchError, status, statusText } = await supabase.from('salon').select('*').eq('id', salonId).single();
-    if (fetchError || !salon) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
-    // Vérifier si le salon à commencé une partie
-    if (salon.commence) {
-      return peer.send({ user: 'server', type: 'error', message: 'Le salon a déjà commencé une partie' });
-    }
-    // Vérifier si le salon est plein
-    if (salon.j_actuelle == salon.j_max) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon plein' });
-    }
-    peer.send({ user: 'system', message: status + ' ' + statusText });
-
-    // Incrémenter le nombre de joueurs actuels
-    const { error: updateError } = await supabase
-      .from('salon')
-      .update({ j_actuelle: salon.j_actuelle + 1 })
-      .eq('id', salonId);
-
-    if (updateError) {
-      return peer.send({ user: 'server', type: 'error', message: updateError.message });
+    // Update player count in database
+    const success = await this.updatePlayerCount(salonId, true);
+    if (!success) {
+      peer.send({ user: 'server', type: 'error', message: 'Erreur lors de la mise à jour du salon' });
+      return;
     }
 
-    // Prépare l'état en mémoire
+    // Update in-memory state
     leaveAllSalons(peer);
 
     const salonMemoire = getOrCreateSalon(salonId);
     salonMemoire.joueurs.set(peer.id, {
-      userId: peer.userId,
-      profile: { id: peer.id, pseudo: peer.profile.pseudo, avatar: peer.profile.avatar, elo: peer.profile.elo },
+      userId: peer.user.id,
+      profile: {
+        id: peer.profile.id,
+        pseudo: peer.profile.pseudo,
+        avatar: peer.profile.avatar,
+        elo: peer.profile.elo,
+      },
       score: 0,
       connected: true,
       isReady: false,
       finished: false,
     });
+
     saveSalonState(salonId, salonMemoire);
 
     peer.subscribe(`salon-${salonId}`);
     peer.currentSalon = salonId;
 
-    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'join', salonId, message: `${peer.id} a rejoint le salon` }));
-    peer.send({ user: 'server', type: 'success', message: `Vous avez rejoint le salon ${salon.label}` });
+    this.publishSalonUpdate(peer, salonId, 'join', `Vous avez rejoint le salon ${salon.label}`);
   }
 
-  async playerLeaveSalon(peer, salonId: number) {
-    const supabase = await useSupabase();
-    if (isNaN(salonId)) {
-      return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour quitter le salon' });
+  async playerLeaveSalon(peer: any, salonId: number): Promise<void> {
+    const salon = await this.validateSalonExists(peer, salonId);
+    if (!salon) return;
+
+    // Update player count in database
+    const success = await this.updatePlayerCount(salonId, false);
+    if (!success) {
+      peer.send({ user: 'server', type: 'error', message: 'Erreur lors de la mise à jour du salon' });
+      return;
     }
 
-    // Vérifier si le salon existe
-    const { data: salon, error: fetchError } = await supabase.from('salon').select('*').eq('id', salonId).single();
-    if (fetchError || !salon) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+    // Update in-memory state
+    const salonMemoire = getSalonState(salonId);
+    if (salonMemoire) {
+      salonMemoire.joueurs.delete(peer.id);
+      saveSalonState(salonId, salonMemoire);
     }
-
-    // Décrémenter le nombre de joueurs actuels
-    const { error: updateError } = await supabase
-      .from('salon')
-      .update({ j_actuelle: Math.max(salon.j_actuelle - 1, 0) })
-      .eq('id', salonId);
-
-    if (updateError) {
-      return peer.send({ user: 'server', type: 'error', message: updateError.message });
-    }
-
-    const salonMemoire = getOrCreateSalon(salonId);
-    salonMemoire.joueurs.delete(peer.id);
-    saveSalonState(salonId, salonMemoire);
 
     peer.unsubscribe(`salon-${salonId}`);
     peer.currentSalon = null;
-
     peer.subscribe('salons');
 
-    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'leave', salonId, message: `${peer.id} a quitté le salon` }));
-    peer.send({ user: 'server', type: 'success', message: `Vous avez quitté le salon ${salon.label}` });
+    this.publishSalonUpdate(peer, salonId, 'leave', `Vous avez quitté le salon ${salon.label}`);
   }
 }
 

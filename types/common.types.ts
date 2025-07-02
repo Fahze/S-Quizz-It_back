@@ -22,3 +22,23 @@ export interface JoueurClassement {
   pseudo: string;
   totalPoints: number;
 }
+
+export type SalonType = 'normal' | 'rapide' | 'solo';
+
+export interface CreateSalonParams {
+  label: string;
+  difficulte: number;
+  type: SalonType;
+  j_max: number;
+}
+
+export interface SalonData {
+  id: number;
+  label: string;
+  difficulte: number;
+  type: SalonType;
+  j_max: number;
+  j_actuelle: number;
+  commence: boolean;
+  created_at?: string;
+}

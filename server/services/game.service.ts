@@ -1,142 +1,175 @@
 import { clearSalonState, getSalonState, saveSalonState } from '~/utils/websockets.utils';
 import questionService from './question.service';
-import { AnswerResult } from '~~/types/common.types';
+import { AnswerResult, JoueurClassement } from '~~/types/common.types';
 
 class GameService {
-  async handleReady(peer, salonId) {
+  private validateGameState(peer: any, salonId: number, requireGameStarted = false) {
     const salonMemoire = getSalonState(salonId);
+
     if (!salonMemoire) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
-    if (!salonMemoire.joueurs.has(peer.id)) {
-      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
+      peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+      return null;
     }
 
-    const joueur = salonMemoire.joueurs.get(peer.id);
-    joueur.isReady = !joueur.isReady; // Inverse l'état de readiness
-    salonMemoire.joueurs.set(peer.id, joueur);
-    saveSalonState(salonId, salonMemoire);
-    peer.publish(
-      `salon-${salonId}`,
-      JSON.stringify({ user: `salon-${salonId}`, type: 'ready', salonId, message: `${peer.id} est ${joueur.isReady ? 'prêt' : 'pas prêt'}` })
-    );
-    peer.send({ user: `salon-${salonId}`, type: 'ready', salonId, message: `${peer.id} est ${joueur.isReady ? 'prêt' : 'pas prêt'}` });
+    if (!salonMemoire.joueurs.has(peer.id)) {
+      peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
+      return null;
+    }
+
+    if (requireGameStarted && !salonMemoire.partieCommencee) {
+      peer.send({ user: 'server', type: 'error', message: "La partie n'a pas commencé" });
+      return null;
+    }
+
+    return salonMemoire;
   }
 
-  async startGame(peer, salonId) {
-    const supabase = await useSupabase();
-    const salonMemoire = getSalonState(salonId);
+  private publishToSalon(peer: any, salonId: number, type: string, message: string, additionalData = {}) {
+    const payload = {
+      user: `salon-${salonId}`,
+      type,
+      salonId,
+      message,
+      ...additionalData,
+    };
 
-    if (isNaN(salonId) || !salonMemoire) {
-      return peer.send({ user: 'server', type: 'error', message: 'ID invalide pour démarrer le jeu' });
-    }
-    if (!Array.from(salonMemoire.joueurs.values()).every((j) => j.isReady)) {
-      return peer.send({ user: 'server', type: 'error', message: 'Tous les joueurs doivent être prêts pour démarrer le jeu' });
-    }
-    // Vérifier si le salon existe
-    const { data: salon, error: fetchError } = await supabase.from('salon').select('*').eq('id', salonId).single();
-    if (fetchError || !salon) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
+    peer.publish(`salon-${salonId}`, JSON.stringify(payload));
+    peer.send(payload);
+  }
 
-    await questionService
-      .getQuestions(salon.difficulte)
-      .then((questions) => {
-        if (questions.length === 0) {
-          return peer.send({ user: 'server', type: 'error', message: 'Aucune question disponible pour ce niveau de difficulté' });
-        }
-        salonMemoire.questions = questions;
-      })
-      .catch((error) => {
-        console.error(`Erreur lors de la récupération des questions: ${error.message}`);
-        return peer.send({ user: 'server', type: 'error', message: `Erreur interne du serveur` });
-      });
-    await supabase.from('salon').update({ commence: true }).eq('id', salonId);
+  private areAllPlayersReady(salonMemoire: any): boolean {
+    return Array.from(salonMemoire.joueurs.values()).every((joueur: any) => joueur.isReady);
+  }
 
-    let timer = 3; // Démarre le compte à rebours à 3 secondes
+  private haveAllPlayersAnswered(salonMemoire: any): boolean {
+    return Array.from(salonMemoire.joueurs.values()).every((joueur: any) => (joueur.questionIndex || 0) === salonMemoire.currentQuestionIndex + 1);
+  }
+
+  private async startGameCountdown(peer: any, salonId: number, salonMemoire: any): Promise<void> {
+    let timer = 3;
+
     const startTimer = setInterval(() => {
-      peer.publish(
-        `salon-${salonId}`,
-        JSON.stringify({
-          user: `salon-${salonId}`,
-          type: 'game_countdown',
-          message: `Le jeu commence dans ${timer} secondes !`,
-          salonId: salonId,
-        })
-      );
+      this.publishToSalon(peer, salonId, 'game_countdown', `Le jeu commence dans ${timer} secondes !`);
+
       timer--;
 
       if (timer <= 0) {
         clearInterval(startTimer);
-        peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game-start', salonId, message: salonMemoire }));
-        peer.send({ user: 'server', type: 'success', message: `Le jeu a commencé dans le salon ${salon.label}` });
+
         salonMemoire.partieCommencee = true;
         saveSalonState(salonId, salonMemoire);
+
+        peer.publish(
+          `salon-${salonId}`,
+          JSON.stringify({
+            user: `salon-${salonId}`,
+            type: 'game-start',
+            salonId,
+            message: salonMemoire,
+          })
+        );
       }
     }, 1000);
   }
 
-  async answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText) {
-    const salonMemoire = getSalonState(salonId);
+  async handleReady(peer: any, salonId: number): Promise<void> {
+    const salonMemoire = this.validateGameState(peer, salonId);
+    if (!salonMemoire) return;
 
-    console.log(salonId, questionId, tempsReponse, answerId, answerText);
-    if (!salonMemoire) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
-    if (!salonMemoire.partieCommencee) {
-      return peer.send({ user: 'server', type: 'error', message: "La partie n'a pas commencé" });
-    }
-    if (!salonMemoire.joueurs.has(peer.id)) {
-      return peer.send({ user: 'server', type: 'error', message: "Vous n'êtes pas dans ce salon" });
-    }
     const joueur = salonMemoire.joueurs.get(peer.id);
+    joueur.isReady = !joueur.isReady;
+
+    salonMemoire.joueurs.set(peer.id, joueur);
+    saveSalonState(salonId, salonMemoire);
+
+    const readyStatus = joueur.isReady ? 'prêt' : 'pas prêt';
+    this.publishToSalon(peer, salonId, 'ready', `${peer.id} est ${readyStatus}`);
+  }
+
+  async startGame(peer: any, salonId: number): Promise<void> {
+    const salonMemoire = this.validateGameState(peer, salonId);
+    if (!salonMemoire) return;
+
+    if (!this.areAllPlayersReady(salonMemoire)) {
+      peer.send({
+        user: 'server',
+        type: 'error',
+        message: 'Tous les joueurs doivent être prêts pour démarrer le jeu',
+      });
+      return;
+    }
+
+    const supabase = await useSupabase();
+    const { data: salon, error } = await supabase.from('salon').select('*').eq('id', salonId).single();
+
+    if (error || !salon) {
+      peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
+      return;
+    }
+
+    try {
+      const questions = await questionService.getQuestions(salon.difficulte);
+
+      if (questions.length === 0) {
+        peer.send({
+          user: 'server',
+          type: 'error',
+          message: 'Aucune question disponible pour ce niveau de difficulté',
+        });
+        return;
+      }
+
+      salonMemoire.questions = questions;
+      await supabase.from('salon').update({ commence: true }).eq('id', salonId);
+      await this.startGameCountdown(peer, salonId, salonMemoire);
+    } catch (error: any) {
+      console.error(`Erreur lors de la récupération des questions: ${error.message}`);
+      peer.send({ user: 'server', type: 'error', message: 'Erreur interne du serveur' });
+    }
+  }
+
+  async answerQuestion(peer: any, salonId: number, questionId: number, tempsReponse: number, answerId?: number, answerText?: string): Promise<void> {
+    const salonMemoire = this.validateGameState(peer, salonId, true);
+    if (!salonMemoire) return;
 
     const question = questionService.getQuestionById(salonMemoire.questions, questionId);
     if (!question) {
-      return peer.send({ user: 'server', type: 'error', message: 'Question introuvable' });
+      peer.send({ user: 'server', type: 'error', message: 'Question introuvable' });
+      return;
     }
 
     const answerResult: AnswerResult = await questionService.checkAnswer({
       idQuestion: questionId,
       idReponse: answerId,
       idJoueur: peer.profile.id,
-      tempsReponse: tempsReponse,
+      tempsReponse,
       type: question.type,
       reponseJoueur: answerText,
     });
 
+    // Update player state
+    const joueur = salonMemoire.joueurs.get(peer.id);
     joueur.score += answerResult.pointsGagnes;
-    joueur.questionIndex = (joueur.questionIndex || 0) + 1; // Incrémente l'index de question
-
+    joueur.questionIndex = (joueur.questionIndex || 0) + 1;
     salonMemoire.joueurs.set(peer.id, joueur);
 
-    if (Array.from(salonMemoire.joueurs.values()).every((j) => j.questionIndex === salonMemoire.currentQuestionIndex)) {
+    // Check if all players have answered current question
+    if (this.haveAllPlayersAnswered(salonMemoire)) {
       if (salonMemoire.currentQuestionIndex >= salonMemoire.questions.length - 1) {
-        // Si toutes les questions ont été posées, on initie la fin du jeu
-        salonMemoire.joueurs.forEach((joueur) => {
-          joueur.finished = true; // Marque le joueur comme ayant terminé
-          salonMemoire.joueurs.set(joueur.userId, joueur);
-        });
+        // Game finished
+        this.markAllPlayersFinished(salonMemoire);
         saveSalonState(salonId, salonMemoire);
-
-        this.endGame(peer, salonId);
+        await this.endGame(peer, salonId);
         return;
       }
-      salonMemoire.currentQuestionIndex++;
 
-      peer.publish(
-        `salon-${salonId}`,
-        JSON.stringify({ user: `salon-${salonId}`, type: 'next_question', salonId, questionIndex: salonMemoire.currentQuestionIndex })
-      );
-      peer.send({
-        user: `salon-${salonId}`,
-        type: 'next_question',
-        salonId,
-        questionIndex: salonMemoire.currentQuestionIndex,
-      });
+      // Move to next question
+      salonMemoire.currentQuestionIndex++;
+      this.publishToSalon(peer, salonId, 'next_question', 'Question suivante', { questionIndex: salonMemoire.currentQuestionIndex });
     }
 
     saveSalonState(salonId, salonMemoire);
+
     peer.send({
       user: `salon-${salonId}`,
       type: 'answer_result',
@@ -147,39 +180,37 @@ class GameService {
     });
   }
 
-  async endGame(peer, salonId) {
-    const supabase = await useSupabase();
-    const salonMemoire = getSalonState(salonId);
-    if (!salonMemoire) {
-      return peer.send({ user: 'server', type: 'error', message: 'Salon introuvable' });
-    }
-
-    const joueurs = Array.from(salonMemoire.joueurs.values()).map((joueur) => {
-      return {
-        idJoueur: Number(joueur.profile.id),
-        pseudo: peer.profile.pseudo, // Assuming peer.profile contains the player's profile
-        totalPoints: joueur.score,
-      };
+  private markAllPlayersFinished(salonMemoire: any): void {
+    salonMemoire.joueurs.forEach((joueur: any, playerId: string) => {
+      joueur.finished = true;
+      salonMemoire.joueurs.set(playerId, joueur);
     });
+  }
+
+  async endGame(peer: any, salonId: number): Promise<void> {
+    const salonMemoire = this.validateGameState(peer, salonId);
+    if (!salonMemoire) return;
+
+    const joueurs: JoueurClassement[] = Array.from(salonMemoire.joueurs.values()).map((joueur: any) => ({
+      idJoueur: Number(joueur.profile.id),
+      pseudo: joueur.profile.pseudo,
+      totalPoints: joueur.score,
+    }));
 
     const classement = questionService.getClassement(joueurs);
 
-    peer.publish(`salon-${salonId}`, JSON.stringify({ user: `salon-${salonId}`, type: 'game_end', salonId, classement }));
-    peer.send({ user: `salon-${salonId}`, type: 'game_end', salonId, classement });
+    this.publishToSalon(peer, salonId, 'game_end', 'Fin de partie', { classement });
 
+    // Clean up after 1 minute
     setTimeout(async () => {
-      // Clear the salon state after the game ends
       clearSalonState(salonId);
-      // Clear the salon from database
-      await supabase
-        .from('salon')
-        .delete()
-        .eq('id', salonId)
-        .then(({ error }) => {
-          if (error) {
-            console.error(`Erreur lors de la suppression du salon ${salonId}: ${error.message}`);
-          }
-        });
+
+      const supabase = await useSupabase();
+      const { error } = await supabase.from('salon').delete().eq('id', salonId);
+
+      if (error) {
+        console.error(`Erreur lors de la suppression du salon ${salonId}: ${error.message}`);
+      }
     }, 60000);
   }
 }
