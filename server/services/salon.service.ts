@@ -10,7 +10,7 @@ class SalonService {
   async broadcastSalons(peer, topic) {
     const supabase = await useSupabase();
 
-    const { data: salons, error } = await supabase.from('salon').select('*');
+    const { data: salons, error } = await supabase.from('salon').select('*').eq('type', 'normal');
     const payload = error ? { type: 'error', message: error.message } : { type: 'salons_init', salons };
 
     peer.send(JSON.stringify(payload));
@@ -23,17 +23,36 @@ class SalonService {
       throw new Error('Peer and label are required to create a salon');
     }
     const newSalon = {
-      label: this.genLabel(label),
+      label: label,
       difficulte: difficulte ?? 1,
       type: type ?? 'rapide',
       j_max: j_max ?? 4,
     };
     const { error: insertError } = await supabase.from('salon').insert(newSalon);
+    return insertError;
+  }
 
+  async createNormalSalon(peer, { label, difficulte, type, j_max }) {
+    const supabase = await useSupabase();
+    if (!peer) {
+      throw new Error('Peer is required to create a normal salon');
+    }
+    const insertError = await this.createSalon(peer, {
+      label: label,
+      difficulte: difficulte,
+      type: type,
+      j_max: j_max,
+    });
     if (insertError) {
       peer.send({ type: 'error', message: insertError.message });
     } else {
-      await this.broadcastSalons(peer, 'salons');
+      peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
+      // Récupérer l'ID du salon créé
+      const { data: salons } = await supabase.from('salon').select('*').eq('type', 'normal').order('id', { ascending: false }).limit(1);
+      if (salons.length > 0) {
+        const salonId = salons[0].id;
+        await this.playerJoinSalon(peer, salonId);
+      }
     }
   }
 
@@ -54,19 +73,18 @@ class SalonService {
       await this.playerJoinSalon(peer, salonId);
     } else {
       // Sinon, créer un nouveau salon rapide
-      const newSalon = {
+      const insertError = await this.createSalon(peer, {
         label: this.genLabel('Rapide'),
         difficulte: 2,
-        type: 'rapide' as const,
+        type: 'rapide',
         j_max: 4,
-      };
-      const { error: insertError } = await supabase.from('salon').insert(newSalon);
+      });
       if (insertError) {
         peer.send({ type: 'error', message: insertError.message });
       } else {
         peer.send({ type: 'success', message: 'Salon rapide créé avec succès' });
         // Récupérer l'ID du salon créé
-        const { data: salons } = await supabase.from('salon').select('*').order('id', { ascending: false }).limit(1);
+        const { data: salons } = await supabase.from('salon').select('*').eq('type', 'rapide').order('id', { ascending: false }).limit(1);
         if (salons.length > 0) {
           const salonId = salons[0].id;
           await this.playerJoinSalon(peer, salonId);

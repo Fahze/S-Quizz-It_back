@@ -41,6 +41,12 @@ export default defineWebSocketHandler({
       peer.send({ user: 'server', message: JSON.stringify(salonsEnCours) });
     }
 
+    if (text.startsWith('create:')) {
+      const answerData = JSON.parse(text.replace('create:', ''));
+      const { difficulte, j_max, label } = answerData;
+      await salonService.createNormalSalon(peer, { label, difficulte, type: 'normal', j_max });
+    }
+
     if (text === 'rapide') {
       await salonService.createRapideSalon(peer);
     }
@@ -91,7 +97,7 @@ export default defineWebSocketHandler({
       const answerData = JSON.parse(text.replace('answer:', ''));
       const { salonId, questionId, tempsReponse, answerId, answerText } = answerData;
       if (peer.currentSalon === salonId) {
-      await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
+        await gameService.answerQuestion(peer, salonId, questionId, tempsReponse, answerId, answerText);
       } else {
         peer.send({
           user: 'server',
