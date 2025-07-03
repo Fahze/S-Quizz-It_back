@@ -19,6 +19,22 @@ export default defineEventHandler(async (event) => {
     // On récupère le client Supabase
     const supabase = await useSupabase();
 
+    // On vérifie que le pseudo n'est pas déjà utilisé
+    const { data: existingProfile, error: existProfileError } = await supabase.from("profile")
+      .select("*")
+      .eq("pseudo", username)
+      .single();
+
+    if (existProfileError || existingProfile) {
+      // On log l'erreur pour le debug
+      console.error("Erreur lors de la vérification du pseudo:", existProfileError);
+      // On renvoie une erreur 500 si la vérification du pseudo échoue
+      throw createError({
+        statusCode: 500,
+        statusMessage: "Erreur lors de la vérification du pseudo.",
+      });
+    }
+
     // On tente de créer l'utilisateur
     const { data, error } = await supabase.auth.signUp({
       email,
