@@ -32,7 +32,9 @@ class QuestionService {
         label: question.label,
         niveauDifficulte: question.niveauDifficulte,
         type: Math.random() < 0.5 ? 'qcm' : 'input',
-        reponses: question.reponse.map((reponse) => ({
+        reponses: question.reponse
+        .toSorted(() => Math.random() - 0.5)
+        .map((reponse) => ({
           id: reponse.id,
           label: reponse.label,
         })),
